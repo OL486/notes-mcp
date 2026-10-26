@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+
+      - name: 同步依赖
+        run: uv sync --frozen
+
+      # git 不保存 mtime，克隆下来的示例笔记全是"刚检出"的时间，
+      # list_recent 会全部命中，端到端自检里的天数断言就会失败。
+      - name: 对齐示例笔记的 mtime
+        run: uv run python scripts/seed_mtimes.py
+
+      - name: 单元测试
+        run: uv run pytest -p no:cacheprovider
+
+      - name: 端到端自检（真实 stdio 传输）
+        run: uv run python scripts/verify.py
+
+      - name: 构建产物
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        run: uv build
+
+      # 产物必须能装、能跑，否则"构建成功"没有意义
+      - name: 校验产物可安装可运行
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        run: |
+          python -m venv /tmp/whl
+          /tmp/whl/bin/python -m pip install -q dist/*.whl
+          /tmp/whl/bin/notes-mcp --version
+          /tmp/whl/bin/python -c "import notes_mcp, importlib.metadata as m; print('installed', m.version('notes-mcp'))"
+
+      - name: 上传产物
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+          retention-days: 14

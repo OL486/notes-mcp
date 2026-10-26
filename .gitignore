@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# uv
+# uv.lock 建议提交（锁定可复现的依赖版本），所以不忽略
+
+# 测试与工具缓存
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# 构建产物（要分发请从 CI 的 artifact 下载，或本地 uv build）
+dist/
+build/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# 本地笔记：不要把真实笔记库提交上去
+notes/
