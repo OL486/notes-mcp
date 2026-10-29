@@ -12,7 +12,7 @@
 无循环依赖），三条工程约束（路径安全、上下文预算、结构化错误）都真正落实了，
 不是写在 README 里好看的。
 
-审查中发现 3 处可修复问题，均已修复并补上回归测试。
+审查中发现 4 处可修复问题（3 处代码 + 1 处 CI 缺陷），均已修复并补上回归测试。
 
 ---
 
@@ -103,6 +103,47 @@ text, count, truncated = fit_blocks(["x" * 5000], 300, header="")
 
 ---
 
+## 问题 4（CI 缺陷）：Windows runner 上脚本打印中文直接崩
+
+**文件**：`scripts/verify.py`、`scripts/budget_report.py`、`scripts/demo_weekly_review.py`、`.github/workflows/ci.yml`
+
+**现象**：CI 矩阵里 `ubuntu-latest` 三个 job 全绿，`windows-latest` 三个 job 全红，
+失败步骤都是"端到端自检（真实 stdio 传输）"。
+
+**日志**：
+
+```text
+File "scripts/verify.py", line 68, in part_a
+    print("\n=== A. 功能（SDK Client, mode=2026-07-28）===")
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 9-11
+```
+
+**原因**：GitHub Actions 的 `windows-latest` runner 默认代码页是 **cp1252**（不是中文 Windows 的 GBK）。
+Python 的 stdout 跟着代码页走，`print` 中文直接抛 `UnicodeEncodeError`。
+脚本第一句就崩，后面 22 项检查一项都没跑到。
+
+注意这与被测代码无关——`pytest` 在同一个 job 里是 `74 passed`。纯粹是脚本自己的输出问题。
+
+**为什么之前没暴露**：`notes_mcp/__main__.py` 早就对 **stderr** 做了 `reconfigure(encoding="utf-8")`
+（那是为了 MCP 的 stdout 纯净度），但 `scripts/` 下的独立脚本没有做，而它们恰恰是 CI 唯一会跑的
+端到端入口。本地中文 Windows 是 GBK，能编出中文，所以本地跑不出问题。
+
+**修复**：
+
+1. 三个脚本各自在入口处 `reconfigure` stdout/stderr 为 UTF-8
+   （与 `__main__.py` 处理 stderr 的做法保持一致，`errors="replace"` 保证不因个别字符再次崩）；
+2. `ci.yml` 增加 `PYTHONIOENCODING: utf-8` 与 `PYTHONUTF8: "1"` 兜底，
+   覆盖 pytest 采集阶段的输出以及将来新增的脚本。
+
+**本地复现方式**（不用等 CI）：
+
+```bash
+PYTHONIOENCODING=cp1252 python -c "print('=== A. 功能 ===')"
+# 修复前：UnicodeEncodeError: 'charmap' codec can't encode characters
+```
+
+---
+
 ## 验证方式（可直接执行）
 
 ```bash
@@ -117,11 +158,15 @@ python -m pip install -e . pytest anyio
 python -m pytest
 ```
 
-审查环境里没有 `uv`、`pip` 也连不上索引，因此上面三条命令未能实跑；
-但所有修复点都用等价的独立脚本逐条验证过（未闭合 fence 提取出 `('real-tag',)`、
+**CI 实测结果（ubuntu / windows × py3.11 / 3.12 / 3.13，六个 job）**：
+
+- 六个 job 全部 success
+- `pytest` **74 passed**（原有 60 + 新增 14）
+- `scripts/verify.py` 22 项端到端全部通过（含 stdout 每行必须是合法 JSON）
+
+修复点另有等价独立脚本逐条验证：未闭合 fence 提取出 `('real-tag',)`、
 `fit_blocks(…, 300)` 返回 `count=0` 且含"未返回任何内容"、
-`build_index(100 篇)` 耗时约 75 ms、200 篇 / 2000 预算下长度 1734 ≤ 2000）。
-建议在 CI 里跑一次全量确认。
+`build_index(100 篇)` 耗时约 75 ms、200 篇 / 2000 预算下长度 1734 ≤ 2000。
 
 ---
 
@@ -163,6 +208,8 @@ python -m pytest
 | `notes_mcp/store.py` | 未闭合 fence 恢复逻辑 |
 | `notes_mcp/resources.py` | 二分查找裁剪，下界 0 |
 | `notes_mcp/budget.py` | 空结果截断文案 |
+| `scripts/verify.py` / `budget_report.py` / `demo_weekly_review.py` | 入口处 reconfigure stdout/stderr 为 UTF-8 |
+| `.github/workflows/ci.yml` | 增加 `PYTHONIOENCODING` / `PYTHONUTF8` |
 | `tests/test_store.py` | +3 用例 |
 | `tests/test_resources.py` | +3 用例 |
 | `tests/test_budget.py` | 新增，8 用例 |
