@@ -18,6 +18,22 @@ import anyio
 from mcp.client import Client
 from mcp.client.stdio import StdioServerParameters
 
+
+def _force_utf8_console() -> None:
+    """Windows 控制台默认 GBK、GitHub Actions 的 Windows runner 是 cp1252，
+    都不保证能编码中文。脚本自己把输出钉成 UTF-8，别让 print 成为唯一的失败点。"""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
+
+_force_utf8_console()
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 NOTES_ROOT = PROJECT_ROOT / "sample_notes"
 TOPIC = sys.argv[1] if len(sys.argv) > 1 else "MCP"
