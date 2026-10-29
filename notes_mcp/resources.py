@@ -58,9 +58,11 @@ def build_index(settings: Settings) -> str:
     if len(full) <= budget:
         return full
 
-    # 需要截断：二分查找能放入预算的最大条目数
-    lo, hi = 1, len(all_entries) - 1
-    best = 1
+    # 需要截断：二分查找能放入预算的最大条目数。
+    # lo 从 0 开始而不是 1：若连单条都放不下（预算被压到极低），
+    # 必须允许返回 0 条，否则"预算上限"就被破坏了。
+    lo, hi = 0, len(all_entries)
+    best = 0
     while lo <= hi:
         mid = (lo + hi) // 2
         test = _dump_index(settings, len(notes), all_entries[:mid], truncated=True)
