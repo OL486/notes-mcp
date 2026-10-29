@@ -10,10 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Windows runner 的默认代码页是 cp1252，脚本里 print 中文会直接抛
-# UnicodeEncodeError（本地是 GBK，表现不同但同样是坑）。
-# 脚本自身已经 reconfigure 过 stdout/stderr，这里再加一道环境变量兜底，
-# 覆盖 pytest 采集阶段的输出以及将来新增的脚本。
+# Windows runner 的默认代码页是 cp1252，脚本里 print 中文会抛 UnicodeEncodeError
+#（本地中文 Windows 是 GBK，不会触发）。脚本自身已经 reconfigure 过 stdout/stderr，
+# 这里再加一道环境变量兜底，覆盖 pytest 采集阶段的输出以及后续新增的脚本。
 env:
   PYTHONIOENCODING: utf-8
   PYTHONUTF8: "1"

@@ -60,7 +60,7 @@ def build_index(settings: Settings) -> str:
 
     # 需要截断：二分查找能放入预算的最大条目数。
     # lo 从 0 开始而不是 1：若连单条都放不下（预算被压到极低），
-    # 必须允许返回 0 条，否则"预算上限"就被破坏了。
+    # 要允许返回 0 条，否则序列化结果会超出预算上限。
     lo, hi = 0, len(all_entries)
     best = 0
     while lo <= hi:

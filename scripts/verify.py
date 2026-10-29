@@ -25,10 +25,9 @@ from mcp.client.stdio import StdioServerParameters
 def _force_utf8_console() -> None:
     """把 stdout/stderr 钉成 UTF-8。
 
-    Windows 上 Python 的 stdout 默认跟随控制台代码页：本地是 GBK，
-    GitHub Actions 的 Windows runner 是 cp1252。后者连中文都编不出来，
-    脚本第一句 print("=== A. 功能 ===") 就会抛 UnicodeEncodeError。
-    这不是被测代码的问题，是脚本自己的输出问题，必须自己修好。
+    Windows 上 Python 的 stdout 跟随控制台代码页：本地是 GBK，
+    GitHub Actions 的 Windows runner 是 cp1252。后者编不出中文，
+    脚本第一句 print("=== A. 功能 ===") 就抛 UnicodeEncodeError。
     """
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
