@@ -70,3 +70,33 @@ def test_load_all_is_sorted_and_stable(notes_root: Path) -> None:
     first = [n.rel for n in load_all(notes_root)]
     second = [n.rel for n in load_all(notes_root)]
     assert first == second == sorted(first)
+
+
+def test_unclosed_fence_does_not_swallow_rest_of_file() -> None:
+    """未闭合代码块是格式瑕疵，不该让后面所有标签消失。
+
+    旧实现遇到 ``` 就一直把后续行替换成空行，直到文件结束都没有闭合标记，
+    于是整篇笔记的标签统计直接归零。这里断言标签仍然能被解析出来。
+    """
+    text = "# 标题\n\n```python\n# 这是注释不是标签\n\n正文 #real-tag\n"
+    assert extract_tags(text) == ("real-tag",)
+
+
+def test_closed_fence_still_hides_code_tags() -> None:
+    """修复未闭合场景时不能把已闭合代码块的过滤能力弄丢。"""
+    text = "# 标题\n\n```python\n# 注释不是标签\nx = 1\n```\n\n正文 #real\n"
+    assert extract_tags(text) == ("real",)
+
+
+def test_multiple_fences_last_unclosed() -> None:
+    """前面闭合、最后一个未闭合时，只恢复最后一个代码块之后的内容。"""
+    text = (
+        "# 标题\n\n"
+        "```sh\n# 第一个代码块里的注释\n```\n\n"
+        "#first\n\n"
+        "```sh\n# 第二个代码块未闭合\n\n"
+        "#second\n"
+    )
+    tags = extract_tags(text)
+    assert "first" in tags
+    assert "second" in tags

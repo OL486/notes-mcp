@@ -21,6 +21,26 @@ import anyio
 from mcp.client import Client
 from mcp.client.stdio import StdioServerParameters
 
+
+def _force_utf8_console() -> None:
+    """把 stdout/stderr 钉成 UTF-8。
+
+    Windows 上 Python 的 stdout 跟随控制台代码页：本地是 GBK，
+    GitHub Actions 的 Windows runner 是 cp1252。后者编不出中文，
+    脚本第一句 print("=== A. 功能 ===") 就抛 UnicodeEncodeError。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):  # 被重定向到不支持重配置的对象时忽略
+            pass
+
+
+_force_utf8_console()
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 NOTES_ROOT = PROJECT_ROOT / "sample_notes"
 

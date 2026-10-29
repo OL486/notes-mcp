@@ -7,12 +7,29 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 from pathlib import Path
 
 from notes_mcp.config import Settings
 from notes_mcp.resources import build_index, read_note_resource
 from notes_mcp.tools import run_list_recent, run_read_note, run_search, run_stats
+
+
+def _force_utf8_console() -> None:
+    """Windows 控制台默认 GBK、GitHub Actions 的 Windows runner 是 cp1252，
+    都不保证能编码中文。脚本自己把输出钉成 UTF-8。"""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
+
+_force_utf8_console()
 
 
 def _make_library(root: Path, notes: int, lines_per_note: int, line_len: int) -> None:
