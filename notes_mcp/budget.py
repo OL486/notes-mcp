@@ -96,6 +96,11 @@ def fit_blocks(
         break
 
     def _notice(count: int) -> str:
+        if count == 0:
+            return (
+                f"\n\n[已截断：共 {len(blocks)} 个结果块，受 {budget} 字符预算限制未返回任何内容。"
+                f"{overflow_advice}]"
+            )
         return (
             f"\n\n[已截断：共 {len(blocks)} 个结果块，受 {budget} 字符预算限制只返回了前 {count} 个。"
             f"{overflow_advice}]"

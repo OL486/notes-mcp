@@ -31,32 +31,46 @@ def build_index(settings: Settings) -> str:
     体积必须按**序列化后的真实长度**算。第一版按单条目 json.dumps 的长度累加，
     结果 `indent=2` 的缩进和换行完全没算进去，200 篇笔记实测吐出 11K 字符——
     预算表直接失真。现在每加一条就真实序列化一次来量。
+
+    优化：对于大量笔记，先用二分查找确定能放入预算的最大条目数，
+    避免 O(n²) 的重复序列化。
     """
     notes = load_all(settings.root)
     notes.sort(key=lambda n: n.mtime, reverse=True)
 
     # 给 truncated 时的 hint 字段预留空间，避免"刚好卡线再加一句就超"。
     budget = max(1_000, settings.index_budget - 200)
-    entries: list[dict[str, object]] = []
-    truncated = False
 
-    for note in notes:
-        entries.append(
-            {
-                "uri": to_note_uri(note.rel),
-                "path": note.rel,
-                "title": note.title,
-                "mtime": datetime.fromtimestamp(note.mtime).isoformat(timespec="minutes"),
-                "units": note.units,
-                "tags": list(note.tags),
-            }
-        )
-        if len(_dump_index(settings, len(notes), entries, truncated=True)) > budget:
-            entries.pop()
-            truncated = True
-            break
+    all_entries = [
+        {
+            "uri": to_note_uri(note.rel),
+            "path": note.rel,
+            "title": note.title,
+            "mtime": datetime.fromtimestamp(note.mtime).isoformat(timespec="minutes"),
+            "units": note.units,
+            "tags": list(note.tags),
+        }
+        for note in notes
+    ]
 
-    return _dump_index(settings, len(notes), entries, truncated=truncated)
+    # 快速路径：全部能放下
+    full = _dump_index(settings, len(notes), all_entries, truncated=False)
+    if len(full) <= budget:
+        return full
+
+    # 需要截断：二分查找能放入预算的最大条目数
+    lo, hi = 1, len(all_entries) - 1
+    best = 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        test = _dump_index(settings, len(notes), all_entries[:mid], truncated=True)
+        if len(test) <= budget:
+            best = mid
+            lo = mid + 1
+        else:
+            hi = mid - 1
+
+    return _dump_index(settings, len(notes), all_entries[:best], truncated=True)
 
 
 def _dump_index(

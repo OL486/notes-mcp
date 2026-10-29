@@ -119,14 +119,23 @@ def extract_tags(text: str) -> tuple[str, ...]:
 
 
 def _strip_fenced_code(text: str) -> str:
-    """把 ``` / ~~~ 围起来的代码块替换成空行，保留行数以便行号仍然对得上。"""
+    """把 ``` / ~~~ 围起来的代码块替换成空行，保留行数以便行号仍然对得上。
+
+    如果文件结束时代码块未闭合（例如 ``` 开头但没有结尾），
+    将未闭合代码块起始行及之后的所有内容保留为普通文本，
+    避免标签提取因格式瑕疵而完全失效。
+    """
+    lines = text.splitlines()
     out: list[str] = []
     fence: str | None = None
-    for line in text.splitlines():
+    fence_start = -1
+
+    for i, line in enumerate(lines):
         stripped = line.lstrip()
         if fence is None:
             if stripped.startswith("```") or stripped.startswith("~~~"):
                 fence = stripped[:3]
+                fence_start = i
                 out.append("")
                 continue
             out.append(line)
@@ -134,6 +143,12 @@ def _strip_fenced_code(text: str) -> str:
             if stripped.startswith(fence):
                 fence = None
             out.append("")
+
+    # 文件结束时代码块未闭合：恢复从最后一个未闭合代码块开始的所有内容
+    if fence is not None and fence_start >= 0:
+        for i in range(fence_start, len(lines)):
+            out[i] = lines[i]
+
     return "\n".join(out)
 
 
