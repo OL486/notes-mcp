@@ -57,4 +57,4 @@ def test_read_note_resource_truncates(tmp_path) -> None:
 
     text = read_note_resource(Settings(root=root.resolve(), max_note_chars=1000), "big.md")
     assert "已截断" in text
-    assert len(text) < 1000 + 250
+    assert len(text) <= 1000

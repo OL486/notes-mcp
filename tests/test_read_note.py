@@ -27,8 +27,8 @@ def test_truncates_over_limit(tmp_path: Path) -> None:
     assert outcome.truncated is True
     assert outcome.total_chars > 500
     assert "已截断" in outcome.text
-    # 截断后的正文（不含提示）不能超过上限
-    assert len(outcome.text) < 500 + 250
+    # 截断后的全文（含提示）不能超过上限
+    assert len(outcome.text) <= 500
 
 
 def test_truncation_prefers_line_boundary(tmp_path: Path) -> None:

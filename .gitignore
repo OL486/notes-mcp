@@ -24,4 +24,5 @@ build/
 .DS_Store
 
 # 本地笔记：不要把真实笔记库提交上去
-notes/
+# 锚定到仓库根目录：未锚定的 notes/ 会连 notes_mcp/notes/（源码包）一起忽略掉。
+/notes/
