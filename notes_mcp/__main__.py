@@ -43,6 +43,18 @@ def _configure_stderr_logging(level: str) -> None:
     )
 
 
+def _port(value: str) -> int:
+    """--port 必须是 1-65535 的整数：argparse 层就拒绝，
+    免得传了 99999 之后 server.run() 运行时才炸。"""
+    try:
+        port = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"端口必须是 1-65535 的整数：{value!r}") from None
+    if not 1 <= port <= 65_535:
+        raise argparse.ArgumentTypeError(f"端口必须在 1-65535 之间：{port}")
+    return port
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="notes-mcp",
@@ -62,9 +74,18 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--host",
         default="127.0.0.1",
-        help="streamable-http 监听地址（默认仅本机）。",
+        help=(
+            "streamable-http 监听地址（默认仅本机）。"
+            "警告：不要设为 0.0.0.0——本服务没有认证，"
+            "一旦绑到 0.0.0.0，局域网内任何人都能读你的笔记。"
+        ),
     )
-    parser.add_argument("--port", type=int, default=8000, help="streamable-http 监听端口。")
+    parser.add_argument(
+        "--port",
+        type=_port,
+        default=8000,
+        help="streamable-http 监听端口（1-65535）。",
+    )
     parser.add_argument(
         "--stateless-http",
         action="store_true",

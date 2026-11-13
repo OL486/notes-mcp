@@ -11,6 +11,10 @@ MIN_USEFUL_REMAINDER = 400
 """剩余预算低于这个数就干脆不再塞内容：几十个字符的残片对模型没有价值，
 只会让它以为自己读到了东西。"""
 
+CLIPPED_BLOCK_SUFFIX_RESERVE = 60
+"""裁块时预留的字符数：被裁的块末尾会追加 "\n…（本片段已截断）\n"，
+再留一点余量给提示长度的位数变化。数值是经验值，不是算出来的精确值。"""
+
 
 def clip_text(text: str, limit: int) -> tuple[str, bool]:
     """把文本截到 limit 字符以内，返回 (截断后文本, 是否真的截断了)。
@@ -46,11 +50,11 @@ def truncation_notice(returned: int, total: int, budget: int, advice: str) -> st
 
 
 NOTICE_RESERVE = 240
-"""给截断提示预留的字符数（历史固定值）。
+"""给截断提示预留的字符数（历史固定值，已废弃）。
 
 clip_with_notice 现在按实际提示长度动态算预留，不再用这个常量：
 提示长度由 advice 决定，advice 超长（例如 300 字符）时固定 240 会溢出。
-本常量仅保留作兼容，不再参与计算。"""
+本常量仅保留作兼容，不再参与计算；新代码不要引用它。"""
 
 
 def clip_with_notice(text: str, budget: int, advice: str) -> tuple[str, bool]:
@@ -111,7 +115,7 @@ def fit_blocks(
         truncated = True
         remainder = budget - used
         if remainder >= MIN_USEFUL_REMAINDER:
-            clipped, _ = clip_text(block, remainder - 60)
+            clipped, _ = clip_text(block, remainder - CLIPPED_BLOCK_SUFFIX_RESERVE)
             kept.append(clipped + "\n…（本片段已截断）\n")
         break
 

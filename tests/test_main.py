@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pytest import MonkeyPatch
 
 from notes_mcp.__main__ import main
 
@@ -18,7 +19,7 @@ def test_missing_root_returns_2(tmp_path: Path) -> None:
     assert main(["--root", str(tmp_path / "不存在")]) == 2
 
 
-def test_missing_root_via_env_returns_2(tmp_path: Path, monkeypatch) -> None:
+def test_missing_root_via_env_returns_2(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("NOTES_MCP_ROOT", str(tmp_path / "不存在"))
     assert main([]) == 2
 
@@ -35,11 +36,19 @@ def test_invalid_transport_exits_with_error() -> None:
     assert excinfo.value.code != 0
 
 
-def test_stdio_run_is_called(notes_root: Path, monkeypatch) -> None:
-    calls: list[tuple] = []
+def test_invalid_port_exits_with_error() -> None:
+    """H2：--port 超出 1-65535 时 argparse 就拒绝，不要等到运行时才炸。"""
+    for bad_port in ("0", "65536", "99999", "abc"):
+        with pytest.raises(SystemExit) as excinfo:
+            main(["--port", bad_port])
+        assert excinfo.value.code != 0
+
+
+def test_stdio_run_is_called(notes_root: Path, monkeypatch: MonkeyPatch) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
 
     class FakeServer:
-        def run(self, transport, **kwargs):
+        def run(self, transport: str, **kwargs: object) -> None:
             calls.append((transport, kwargs))
 
     monkeypatch.setattr(
@@ -49,11 +58,13 @@ def test_stdio_run_is_called(notes_root: Path, monkeypatch) -> None:
     assert calls == [("stdio", {})]
 
 
-def test_streamable_http_passes_host_port_and_stateless(notes_root: Path, monkeypatch) -> None:
-    calls: list[tuple] = []
+def test_streamable_http_passes_host_port_and_stateless(
+    notes_root: Path, monkeypatch: MonkeyPatch
+) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
 
     class FakeServer:
-        def run(self, transport, **kwargs):
+        def run(self, transport: str, **kwargs: object) -> None:
             calls.append((transport, kwargs))
 
     monkeypatch.setattr(
@@ -71,12 +82,12 @@ def test_streamable_http_passes_host_port_and_stateless(notes_root: Path, monkey
     ]
 
 
-def test_root_from_env_is_used(notes_root: Path, monkeypatch) -> None:
+def test_root_from_env_is_used(notes_root: Path, monkeypatch: MonkeyPatch) -> None:
     """--root 省略时走 NOTES_MCP_ROOT，能正常启动即说明解析对了。"""
-    calls: list[tuple] = []
+    calls: list[tuple[str, dict[str, object]]] = []
 
     class FakeServer:
-        def run(self, transport, **kwargs):
+        def run(self, transport: str, **kwargs: object) -> None:
             calls.append((transport, kwargs))
 
     monkeypatch.setenv("NOTES_MCP_ROOT", str(notes_root))

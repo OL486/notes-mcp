@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 import anyio
@@ -28,7 +29,7 @@ def _text(block: object) -> str:
     return block.text
 
 
-def _resource_text(contents: list) -> str:
+def _resource_text(contents: Sequence[object]) -> str:
     item = contents[0]
     assert isinstance(item, TextResourceContents), f"资源返回了非文本内容：{type(item)}"
     return item.text

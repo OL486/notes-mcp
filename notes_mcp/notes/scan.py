@@ -23,6 +23,10 @@ def iter_note_files(root: Path) -> list[Path]:
     符号链接：只跟随解析后仍落在根目录内的目标。指向根目录外的链接
     会被跳过——否则 search / list_recent 会把根外文件的内容泄漏进结果，
     read_note 的 resolve 校验拦得住单篇读取，却拦不住扫描。
+
+    只有符号链接才需要 resolve()：rglob 本来就不跟随目录链接，
+    普通文件不可能解析到根外；每文件一次 resolve 是 1000 篇规模下
+    约 0.4 s 的系统调用开销，is_symlink() 一次 lstat 就够了。
     """
     resolved_root = root.resolve()
     found: list[Path] = []
@@ -37,12 +41,13 @@ def iter_note_files(root: Path) -> list[Path]:
             continue
         if rel_parts[-1].startswith("."):
             continue
-        try:
-            resolved = path.resolve(strict=False)
-        except OSError:
-            continue
-        if not resolved.is_relative_to(resolved_root):
-            continue
+        if path.is_symlink():
+            try:
+                resolved = path.resolve(strict=False)
+            except OSError:
+                continue
+            if not resolved.is_relative_to(resolved_root):
+                continue
         found.append(path)
     found.sort(key=lambda p: p.relative_to(root).as_posix())
     return found

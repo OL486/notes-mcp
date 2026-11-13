@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pytest import MonkeyPatch
+
 from notes_mcp.config import (
     ENV_MAX_NOTE_CHARS,
     ENV_ROOT,
@@ -45,7 +47,7 @@ def test_root_is_resolved(tmp_path: Path) -> None:
     assert settings.root.is_absolute()
 
 
-def test_env_vars_are_used(monkeypatch, tmp_path: Path) -> None:
+def test_env_vars_are_used(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv(ENV_MAX_NOTE_CHARS, "1000")
     monkeypatch.setenv(ENV_SEARCH_BUDGET, "2000")
     settings = load_settings(tmp_path)
@@ -53,13 +55,13 @@ def test_env_vars_are_used(monkeypatch, tmp_path: Path) -> None:
     assert settings.search_budget == 2000
 
 
-def test_env_root_is_used(monkeypatch, tmp_path: Path) -> None:
+def test_env_root_is_used(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv(ENV_ROOT, str(tmp_path))
     settings = load_settings()
     assert settings.root == tmp_path.resolve()
 
 
-def test_invalid_env_value_falls_back_to_default(monkeypatch, tmp_path: Path) -> None:
+def test_invalid_env_value_falls_back_to_default(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv(ENV_MAX_NOTE_CHARS, "not-a-number")
     monkeypatch.setenv(ENV_SEARCH_BUDGET, "0")
     settings = load_settings(tmp_path)
@@ -67,13 +69,13 @@ def test_invalid_env_value_falls_back_to_default(monkeypatch, tmp_path: Path) ->
     assert settings.search_budget == 8_000
 
 
-def test_negative_env_value_falls_back_to_default(monkeypatch, tmp_path: Path) -> None:
+def test_negative_env_value_falls_back_to_default(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv(ENV_MAX_NOTE_CHARS, "-5")
     settings = load_settings(tmp_path)
     assert settings.max_note_chars == 20_000
 
 
-def test_explicit_parameter_beats_env_var(monkeypatch, tmp_path: Path) -> None:
+def test_explicit_parameter_beats_env_var(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv(ENV_MAX_NOTE_CHARS, "1000")
     settings = load_settings(tmp_path, max_note_chars=777)
     assert settings.max_note_chars == 777
@@ -100,7 +102,7 @@ def test_all_fields_exposed_via_explicit_parameters(tmp_path: Path) -> None:
     assert settings.max_limit == 10
 
 
-def test_all_fields_exposed_via_env_vars(monkeypatch, tmp_path: Path) -> None:
+def test_all_fields_exposed_via_env_vars(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     from notes_mcp.config import (
         ENV_CONTEXT_LINES,
         ENV_FRAGMENTS_PER_NOTE,

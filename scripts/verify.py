@@ -28,6 +28,7 @@ NOTES_ROOT = PROJECT_ROOT / "sample_notes"
 # 让 verify.py 能直接读项目代码来算期望值（样本断言不能再写死数字）。
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from notes_mcp.notes.models import Note  # noqa: E402
 from notes_mcp.notes.store import FilesystemNoteStore  # noqa: E402
 
 # 恶意输入：三个都必须被拒绝，且返回可读说明
@@ -47,7 +48,7 @@ _ok = 0
 _fail = 0
 
 
-def _sample_notes() -> list:
+def _sample_notes() -> list[Note]:
     """示例笔记的实际内容：断言的期望值都从这里算，不再写死"4 篇"这类数字，
     否则样本一变（加一篇笔记、换一个标签）自检就假失败。"""
     return FilesystemNoteStore(NOTES_ROOT.resolve()).load_all()

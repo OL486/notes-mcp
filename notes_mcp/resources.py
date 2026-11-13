@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 
+from .budget import clip_text
 from .config import Settings
 from .notes.store import make_store
 from .safety import to_note_uri
@@ -36,7 +37,10 @@ def build_index(settings: Settings) -> str:
     notes.sort(key=lambda n: n.mtime, reverse=True)
 
     # 给 truncated 时的 hint 字段预留空间，避免"刚好卡线再加一句就超"。
-    budget = max(1_000, settings.index_budget - 200)
+    # 注意这里没有下限：index_budget 很小（例如 100）时，max(1_000, …) 会
+    # 让输出反超预算近 10 倍——预算承诺必须按实际值算。
+    budget = settings.index_budget
+    work_budget = max(0, budget - 200)
     entries: list[dict[str, object]] = []
     truncated = False
 
@@ -51,12 +55,19 @@ def build_index(settings: Settings) -> str:
                 "tags": list(note.tags),
             }
         )
-        if len(_dump_index(settings, len(notes), entries, truncated=True)) > budget:
+        if len(_dump_index(settings, len(notes), entries, truncated=True)) > work_budget:
             entries.pop()
             truncated = True
             break
 
-    return _dump_index(settings, len(notes), entries, truncated=truncated)
+    result = _dump_index(settings, len(notes), entries, truncated=truncated)
+    if len(result) > budget:
+        # 条目已空仍超预算：先去掉 hint 再量；极端小预算下最后硬截，
+        # 预算上限是硬承诺，JSON 完整性只能让路。
+        result = _dump_index(settings, len(notes), entries, truncated=truncated, hint=False)
+    if len(result) > budget:
+        result = clip_text(result, budget)[0]
+    return result
 
 
 def _dump_index(
@@ -65,6 +76,7 @@ def _dump_index(
     entries: list[dict[str, object]],
     *,
     truncated: bool,
+    hint: bool = True,
 ) -> str:
     payload: dict[str, object] = {
         "count": total,
@@ -72,7 +84,7 @@ def _dump_index(
         "truncated": truncated or len(entries) < total,
         "notes": entries,
     }
-    if payload["truncated"]:
+    if hint and payload["truncated"]:
         payload["hint"] = "清单被预算截断，请用 list_recent 或 search_notes 定位剩余笔记。"
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -92,7 +104,10 @@ def read_note_resource(settings: Settings, path: str) -> str:
     return read_note(
         settings,
         path,
-        advice="请改用 read_note 工具分段读取，或用 search_notes 定位关键段落。",
+        advice=(
+            "请用 search_notes 定位关键段落；超出 20,000 字符上限的部分"
+            "目前没有分段读取的办法，read_note 工具同样只有这个上限。"
+        ),
     ).text
 
 

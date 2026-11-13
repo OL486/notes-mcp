@@ -22,6 +22,16 @@ from .tools import QueryRejected
 
 SERVER_NAME = "notes-mcp"
 
+__all__ = [
+    "INSTRUCTIONS",
+    "SERVER_NAME",
+    "create_server",
+    "prompt_impl",
+    "tool_impl",
+]
+"""显式导出：tool_impl / prompt_impl 是 `from . import tools as …` 的别名，
+测试里 monkeypatch 要直接访问它们，mypy strict 下不写 __all__ 会报 attr-defined。"""
+
 INSTRUCTIONS = """\
 这是一个只读的本地 Markdown 笔记服务，不会写入、修改或删除任何文件。
 

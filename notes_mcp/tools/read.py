@@ -15,7 +15,7 @@ def run_read_note(settings: Settings, path: str) -> ReadOutcome:
     return read_note(
         settings,
         path,
-        advice="请用 search_notes 定位关键段落，或读取这篇笔记对应的 notes:// URI 分段查看。",
+        advice="请用 search_notes 定位关键段落；超出 20,000 字符上限的部分目前没有分段读取的办法。",
     )
 
 

@@ -14,6 +14,15 @@ from urllib.parse import quote
 from .errors import PathRejected
 from .notes.scan import ALLOWED_SUFFIXES
 
+__all__ = [
+    "ALLOWED_SUFFIXES",
+    "PathRejected",
+    "resolve_note_path",
+    "to_note_uri",
+]
+"""显式导出：PathRejected / ALLOWED_SUFFIXES 是从别处 re-export 的，
+mypy strict 下不写 __all__ 会报 attr-defined。"""
+
 """只允许 Markdown。少一类文件就少一类被读取的理由。
 
 定义已迁到 notes_mcp.notes.scan（"扫描该读哪些后缀"属于扫描职责）；

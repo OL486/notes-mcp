@@ -26,6 +26,23 @@ def test_title_falls_back_to_first_line() -> None:
     assert extract_title("没有标题的笔记\n第二行", "stem") == "没有标题的笔记"
 
 
+def test_title_skips_tag_only_line() -> None:
+    """B1：首行是纯标签行时不能当标题，要继续往下找。"""
+    assert extract_title("#mcp #design\n# 真标题\n正文", "fallback") == "真标题"
+    assert extract_title("#mcp #design\n正文第一行", "fallback") == "正文第一行"
+
+
+def test_title_skips_fenced_code_block() -> None:
+    """B6：笔记以代码围栏开头时，标题不能变成 ```。"""
+    assert extract_title("```python\n# 注释\n```\n# 真标题\n", "fallback") == "真标题"
+    assert extract_title("```\ncode\n```\n正文第一行", "fallback") == "正文第一行"
+
+
+def test_title_no_space_heading_is_not_a_heading() -> None:
+    """`#标题` 没空格，在 Markdown 里不是标题，按标签行跳过。"""
+    assert extract_title("#标题\n第二行", "fallback") == "第二行"
+
+
 def test_title_falls_back_to_filename() -> None:
     assert extract_title("   \n\n", "2026-10-01") == "2026-10-01"
 
@@ -33,6 +50,12 @@ def test_title_falls_back_to_filename() -> None:
 def test_tags_are_parsed() -> None:
     text = "# 标题\n\n正文 #mcp #中文标签\n\n#a/b\n"
     assert extract_tags(text) == ("a/b", "mcp", "中文标签")
+
+
+def test_inline_code_tag_is_ignored() -> None:
+    """B3：行内代码里的 `#tag` 不是标签。"""
+    assert extract_tags("`#foo` 和 #real\n") == ("real",)
+    assert extract_tags("`` `#foo` `` 和 #real\n") == ("real",)
 
 
 def test_tag_only_line_is_not_a_heading() -> None:
@@ -59,6 +82,18 @@ def test_decode_gbk_fallback() -> None:
     assert decode_bytes(raw) == "中文内容"
 
 
+def test_decode_utf16_bom() -> None:
+    """B4：带 BOM 的 UTF-16 笔记要按 UTF-16 解，不能走 gb18030 兜底成乱码。"""
+    assert decode_bytes("中文内容".encode("utf-16")) == "中文内容"
+    assert decode_bytes("hello".encode("utf-16")) == "hello"
+
+
+def test_count_units_single_regex_matches_old_counts() -> None:
+    assert count_units("abc_123 中文") == 1 + 2
+    assert count_units("one two three") == 3
+    assert count_units("") == 0
+
+
 def test_decode_invalid_bytes_does_not_raise() -> None:
     assert isinstance(decode_bytes(b"\xff\xfe\x00bad"), str)
 
@@ -68,6 +103,22 @@ def test_skips_hidden_and_non_markdown(notes_root: Path) -> None:
     assert "projects/notes.txt" not in rels
     assert not any(".obsidian" in rel for rel in rels)
     assert "daily/2026-10-25.md" in rels
+
+
+def test_light_load_matches_full_load(notes_root: Path) -> None:
+    """A2：轻量加载的 rel / title / mtime / text 必须与全量一致，
+    只是 tags 为空、units 为 0。"""
+    store = FilesystemNoteStore(notes_root)
+    full = {n.rel: n for n in store.load_all()}
+    light = {n.rel: n for n in store.load_all(light=True)}
+    assert set(light) == set(full)
+    for rel, note in light.items():
+        assert note.title == full[rel].title
+        assert note.mtime == full[rel].mtime
+        assert note.text == full[rel].text
+        assert note.tags == ()
+        assert note.units == 0
+    assert any(full[rel].tags for rel in full)
 
 
 def test_load_all_is_sorted_and_stable(notes_root: Path) -> None:

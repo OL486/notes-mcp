@@ -162,7 +162,7 @@ if not target.is_relative_to(root):
 4. **预算表说 8000、实测 11,195**：`notes://index` 的体积估算漏了 `indent=2` 的缩进。
    改成每加一条就真实序列化一次来量。
 5. **`read_note` 超 76 字符**（20,076 > 20000）：截断提示没算进预算。
-   统一收口到 `clip_with_notice()`，先按 `budget - 240` 裁正文再拼提示。
+   统一收口到 `clip_with_notice()`，按实际提示长度动态算预留再裁正文。
 6. **中文日志在 Windows 控制台变成 `·��Խ`**：控制台 GBK + rich 按 UTF-8 写。
    修法：`sys.stderr.reconfigure(encoding="utf-8")` 并自己装 handler（`force=True` 顶掉 SDK 的 rich handler）。
 7. **`notes://note/a/b.md` 匹配不上**：用了 `{path}`，斜杠被当 URI 分隔符。必须用 `{+path}`（保留展开）。
