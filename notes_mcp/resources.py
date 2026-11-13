@@ -31,7 +31,10 @@ def build_index(settings: Settings) -> str:
 
     体积必须按**序列化后的真实长度**算。第一版按单条目 json.dumps 的长度累加，
     结果 `indent=2` 的缩进和换行完全没算进去，200 篇笔记实测吐出 11K 字符——
-    预算表直接失真。现在每加一条就真实序列化一次来量。
+    预算表直接失真。第二版每加一条就真实序列化一次来量，长度准了，
+    但那是 O(n²)：index_budget 调到 10_000_000 时 1000 篇要 ~4.6 s，
+    其中约 4 s 是重复序列化。现在是增量记账：每加一条只算该条的渲染增量，
+    最后仍以一次真实 `_dump_index` 收口（防估算漂移）。
     """
     notes = make_store(settings).load_all()
     notes.sort(key=lambda n: n.mtime, reverse=True)
@@ -44,21 +47,30 @@ def build_index(settings: Settings) -> str:
     entries: list[dict[str, object]] = []
     truncated = False
 
+    # 增量记账的算式（与真实 dumps 逐字符一致，见 test_resources 的属性测试）：
+    # - 空壳：0 条、truncated=True（含 hint）的 dumps 长度；
+    # - 加第 1 条：条目在数组内的渲染长度 + 4
+    #  （`"notes": [],` 变成 `"notes": [ … ]` 的结构差）；
+    # - 再加一条：条目渲染长度 + 2（条目间的 ",\n"）；
+    # - returned 位数变化时再补位数差（9 → 10 加 1）。
+    # 其余部分（count、truncated、hint 文本）在循环里是不变量。
+    estimated = len(_dump_index(settings, len(notes), [], truncated=True))
     for note in notes:
-        entries.append(
-            {
-                "uri": to_note_uri(note.rel),
-                "path": note.rel,
-                "title": note.title,
-                "mtime": _fmt_iso_time(note.mtime),
-                "units": note.units,
-                "tags": list(note.tags),
-            }
-        )
-        if len(_dump_index(settings, len(notes), entries, truncated=True)) > work_budget:
-            entries.pop()
+        entry = {
+            "uri": to_note_uri(note.rel),
+            "path": note.rel,
+            "title": note.title,
+            "mtime": _fmt_iso_time(note.mtime),
+            "units": note.units,
+            "tags": list(note.tags),
+        }
+        increment = _index_entry_len(entry) + (2 if entries else 4)
+        increment += len(str(len(entries) + 1)) - len(str(len(entries)))
+        if estimated + increment > work_budget:
             truncated = True
             break
+        entries.append(entry)
+        estimated += increment
 
     result = _dump_index(settings, len(notes), entries, truncated=truncated)
     if len(result) > budget:
@@ -68,6 +80,17 @@ def build_index(settings: Settings) -> str:
     if len(result) > budget:
         result = clip_text(result, budget)[0]
     return result
+
+
+def _index_entry_len(entry: dict[str, object]) -> int:
+    """一条目在 indent=2 的 notes 数组内的渲染长度。
+
+    `json.dumps(entry, indent=2)` 是条目自身的渲染；在数组里每行再缩进 4 格，
+    与 `_dump_index` 里该条目实际占的长度逐字符一致（见 test_resources
+    的属性测试）。每条只渲染一次，build_index 的记账因此是 O(n) 而不是 O(n²)。
+    """
+    rendered = json.dumps(entry, ensure_ascii=False, indent=2)
+    return len("\n".join("    " + line for line in rendered.split("\n")))
 
 
 def _dump_index(

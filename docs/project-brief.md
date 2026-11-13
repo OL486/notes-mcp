@@ -1,8 +1,8 @@
 # [项目] notes-mcp：从零实现一个只读本地笔记 MCP Server（MCP 2026-07-28）
 
 > 这份文件就是 issue 正文，可以整段粘贴到 GitHub。
-> 代码已在本地完成并通过 `pytest`（120 个用例，119 通过、1 跳过）+ `scripts/verify.py`（22 项端到端检查），
-> 下方数字为后续优化 PR #5 时的快照，最新数字以 `uv run pytest` 为准。
+> 代码已在本地完成并通过 `pytest`（136 个用例，135 通过、1 跳过）+ `scripts/verify.py`（22 项端到端检查），
+> 下方数字为第四轮优化时的快照，最新数字以 `uv run pytest` 为准。
 > 下方「交付清单」即当前实际状态。逐阶段的协议报文与讲解见 `docs/WALKTHROUGH.md`。
 
 ---

@@ -37,7 +37,7 @@ def test_weekly_review_specifies_output_format() -> None:
 def test_weekly_review_blank_topic_uses_fallback() -> None:
     assert "（未指定主题）" in weekly_review("")
     assert "（未指定主题）" in weekly_review("   ")
-    assert "（未指定主题）" in weekly_review(None)  # type: ignore[arg-type]
+    assert "（未指定主题）" in weekly_review(None)
 
 
 def test_weekly_review_strips_topic() -> None:
