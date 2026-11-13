@@ -10,7 +10,7 @@ from __future__ import annotations
 WEEKLY_REVIEW = "weekly-review"
 
 
-def weekly_review(topic: str) -> str:
+def weekly_review(topic: str | None) -> str:
     """生成"总结本周关于 {topic} 的笔记"的指令模板。
 
     为什么把工具名写进模板：Prompt 的价值就是把"该怎么做"固化下来。

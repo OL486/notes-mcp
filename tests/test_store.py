@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from notes_mcp.config import Settings
 from notes_mcp.notes import (
     count_units,
     decode_bytes,
@@ -14,7 +15,7 @@ from notes_mcp.notes import (
     extract_title,
     iter_note_files,
 )
-from notes_mcp.notes.store import FilesystemNoteStore
+from notes_mcp.notes.store import FilesystemNoteStore, make_store
 from notes_mcp.safety import PathRejected
 
 
@@ -56,6 +57,13 @@ def test_inline_code_tag_is_ignored() -> None:
     """B3：行内代码里的 `#tag` 不是标签。"""
     assert extract_tags("`#foo` 和 #real\n") == ("real",)
     assert extract_tags("`` `#foo` `` 和 #real\n") == ("real",)
+
+
+def test_tags_without_backticks_are_parsed() -> None:
+    """N1：反引号守卫——无反引号的行跳过两次 sub，标签结果必须不变。"""
+    lines = ["#t0 #t1"] + [f"正文第 {i} 行 #tag{i % 5}" for i in range(2000)]
+    text = "# 标题\n\n" + "\n".join(lines) + "\n"
+    assert extract_tags(text) == ("t0", "t1", "tag0", "tag1", "tag2", "tag3", "tag4")
 
 
 def test_tag_only_line_is_not_a_heading() -> None:
@@ -166,3 +174,28 @@ def test_load_note_rejects_symlink_outside_root(notes_root: Path, tmp_path: Path
 
     with pytest.raises(PathRejected):
         FilesystemNoteStore(notes_root).load_note(link)
+
+
+def test_store_works_when_root_is_a_symlink(tmp_path: Path) -> None:
+    """N2：根目录本身是符号链接时，缓存的 resolved 根不能破坏 relative_to。
+
+    扫描返回的路径仍以调用方传进来的原始根为前缀，load_note 的越界校验
+    用缓存的 resolved 根比，rel 仍按原始根算——三者必须同时成立。
+    """
+    real = tmp_path / "real"
+    (real / "daily").mkdir(parents=True)
+    (real / "daily" / "a.md").write_text("# A\n", encoding="utf-8")
+    link = tmp_path / "link"
+    try:
+        os.symlink(real, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+
+    notes = FilesystemNoteStore(link).load_all()
+    assert [n.rel for n in notes] == ["daily/a.md"]
+
+
+def test_make_store_rejects_missing_root(tmp_path: Path) -> None:
+    """N6：根目录不存在时 make_store 直接报错，而不是静默返回空库。"""
+    with pytest.raises(FileNotFoundError, match="根目录不存在"):
+        make_store(Settings(root=tmp_path / "no-such-dir"))

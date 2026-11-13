@@ -8,6 +8,7 @@ from pathlib import Path
 
 from notes_mcp.config import Settings
 from notes_mcp.tools import run_list_recent, run_stats
+from notes_mcp.tools.common import _clamp
 
 
 def test_list_recent_filters_by_mtime(settings: Settings) -> None:
@@ -51,6 +52,18 @@ def test_days_is_clamped(tmp_path: Path) -> None:
     # days=0 会被夹到 1，不应抛异常
     outcome = run_list_recent(Settings(root=root.resolve()), days=0)
     assert "最近 1 天" in outcome.text
+
+
+def test_clamp_rejects_bool_and_non_integer_float() -> None:
+    """N5：True→1、2.9→2 的静默取整必须消失，改回默认值。"""
+    assert _clamp(True, 1, 20, default=5) == 5
+    assert _clamp(False, 1, 20, default=5) == 5
+    assert _clamp(2.9, 1, 20, default=5) == 5
+    # 整数值浮点与数字字符串仍按原有逻辑夹取
+    assert _clamp(2.0, 1, 20, default=5) == 2
+    assert _clamp("7", 1, 20, default=5) == 7
+    assert _clamp("abc", 1, 20, default=5) == 5
+    assert _clamp(None, 1, 20, default=5) == 5
 
 
 def test_list_recent_respects_budget(tmp_path: Path) -> None:
