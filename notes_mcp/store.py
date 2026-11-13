@@ -8,6 +8,8 @@ models / scan / parse / search / store。
 
 from __future__ import annotations
 
+import warnings
+
 from .notes import (
     ALLOWED_SUFFIXES,
     SKIP_DIRS,
@@ -22,10 +24,15 @@ from .notes import (
     extract_tags,
     extract_title,
     iter_note_files,
-    load_all,
-    load_note,
+    make_store,
     render_hit,
     search_notes,
+)
+
+warnings.warn(
+    "notes_mcp.store 已废弃，请从 notes_mcp.notes 导入",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 __all__ = [
@@ -42,8 +49,7 @@ __all__ = [
     "extract_tags",
     "extract_title",
     "iter_note_files",
-    "load_all",
-    "load_note",
+    "make_store",
     "render_hit",
     "search_notes",
 ]
