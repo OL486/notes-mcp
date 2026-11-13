@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from notes_mcp.config import Settings
@@ -26,7 +28,7 @@ def test_fragment_has_two_lines_of_context(settings: Settings) -> None:
     assert "这里也是无关内容。" in outcome.text  # 第 7 行
 
 
-def test_max_three_fragments_per_note(tmp_path) -> None:
+def test_max_three_fragments_per_note(tmp_path: Path) -> None:
     """一篇笔记里有 10 处互不相邻的命中，也只能返回 3 段。"""
     from notes_mcp.config import Settings as S
 
@@ -49,7 +51,7 @@ def test_respects_character_budget(settings: Settings) -> None:
     assert len(outcome.text) <= settings.search_budget
 
 
-def test_truncates_and_says_so_when_budget_tight(tmp_path) -> None:
+def test_truncates_and_says_so_when_budget_tight(tmp_path: Path) -> None:
     """预算被压到很小时，必须明确告知"已截断"，不能假装看全了。"""
     from notes_mcp.config import Settings as S
 

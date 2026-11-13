@@ -23,7 +23,8 @@ def run_list_recent(settings: Settings, days: int = 7) -> RecentOutcome:
     days = _clamp(days, 1, 3650, default=7)
     cutoff = time.time() - days * 86_400
 
-    notes = make_store(settings).load_all()
+    # 轻量加载：list_recent 只用路径、mtime 与标题，tags / units 解析跳过。
+    notes = make_store(settings).load_all(light=True)
     recent = [n for n in notes if n.mtime >= cutoff]
     recent.sort(key=lambda n: n.mtime, reverse=True)
 

@@ -44,7 +44,13 @@ class FilesystemNoteStore:
     def __init__(self, root: Path) -> None:
         self.root = root
 
-    def load_note(self, path: Path) -> Note:
+    def load_note(self, path: Path, *, light: bool = False) -> Note:
+        """读盘 + 解析成 Note。path 必须是根目录内的绝对路径。
+
+        light=True 时跳过 `tags` / `units` 解析（返回空标签与 0 字数）：
+        search / list_recent 只用标题与正文，全量解析每篇要多花约一半时间。
+        轻量 Note 的 rel / title / mtime / text 与全量完全一致。
+        """
         # 二次校验：直接调 load_note 的调用方可能绕过 resolve_note_path，
         # 这里再确认一次解析后的真实路径仍在根目录内（符号链接逃逸）。
         resolved = path.resolve(strict=False)
@@ -61,15 +67,15 @@ class FilesystemNoteStore:
             title=extract_title(text, path.stem),
             mtime=path.stat().st_mtime,
             text=text,
-            tags=extract_tags(text),
-            units=count_units(text),
+            tags=() if light else extract_tags(text),
+            units=0 if light else count_units(text),
         )
 
-    def load_all(self) -> list[Note]:
+    def load_all(self, *, light: bool = False) -> list[Note]:
         notes: list[Note] = []
         for path in iter_note_files(self.root):
             try:
-                notes.append(self.load_note(path))
+                notes.append(self.load_note(path, light=light))
             except (OSError, PathRejected):
                 # 单篇读失败（权限、文件被占用）不该让整个检索失败。
                 # PathRejected 在这里只可能来自扫描与读取之间的竞态

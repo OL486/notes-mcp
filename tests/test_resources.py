@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -27,7 +28,7 @@ def test_index_entries_have_uri_and_metadata(settings: Settings) -> None:
     assert entry["units"] > 0
 
 
-def test_index_respects_budget(tmp_path) -> None:
+def test_index_respects_budget(tmp_path: Path) -> None:
     """笔记很多时索引必须裁剪，并在 JSON 里明说裁了。"""
     root = tmp_path / "notes"
     root.mkdir()
@@ -40,6 +41,21 @@ def test_index_respects_budget(tmp_path) -> None:
     assert "hint" in payload
 
 
+def test_index_respects_small_budget(tmp_path: Path) -> None:
+    """B2：小预算也不能超预算——index_budget=500 曾输出 917 字符。"""
+    root = tmp_path / "notes"
+    root.mkdir()
+    for index in range(200):
+        (root / f"n{index:03d}.md").write_text(f"# 笔记 {index}\n正文\n", encoding="utf-8")
+
+    for budget in (500, 100):
+        text = build_index(Settings(root=root.resolve(), index_budget=budget))
+        assert len(text) <= budget, f"index_budget={budget} 时输出 {len(text)} 字符"
+        payload = json.loads(text)
+        assert payload["truncated"] is True
+        assert payload["returned"] == 0
+
+
 def test_read_note_resource(settings: Settings) -> None:
     text = read_note_resource(settings, "projects/design.md")
     assert "Resource 与 Tool 的区别" in text
@@ -50,7 +66,7 @@ def test_read_note_resource_rejects_traversal(settings: Settings) -> None:
         read_note_resource(settings, "../../secret.md")
 
 
-def test_read_note_resource_truncates(tmp_path) -> None:
+def test_read_note_resource_truncates(tmp_path: Path) -> None:
     root = tmp_path / "notes"
     root.mkdir()
     (root / "big.md").write_text("# 大文件\n" + "内容\n" * 5000, encoding="utf-8")

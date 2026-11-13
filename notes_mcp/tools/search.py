@@ -35,7 +35,8 @@ def run_search(settings: Settings, query: str, limit: int = 5) -> SearchOutcome:
 
     limit = _clamp(limit, 1, settings.max_limit, default=5)
 
-    notes = make_store(settings).load_all()
+    # 轻量加载：search 只用标题与正文，tags / units 解析跳过（约省一半耗时）。
+    notes = make_store(settings).load_all(light=True)
     hits = search_notes(
         notes,
         needle,
