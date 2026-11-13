@@ -11,8 +11,14 @@ import re
 from pathlib import Path, PureWindowsPath
 from urllib.parse import quote
 
-ALLOWED_SUFFIXES = frozenset({".md", ".markdown"})
-"""只允许 Markdown。少一类文件就少一类被读取的理由。"""
+from .notes.scan import ALLOWED_SUFFIXES
+
+"""只允许 Markdown。少一类文件就少一类被读取的理由。
+
+定义已迁到 notes_mcp.notes.scan（"扫描该读哪些后缀"属于扫描职责）；
+这里 re-export 是为了让 `from notes_mcp.safety import ALLOWED_SUFFIXES`
+的旧导入继续可用。
+"""
 
 _DRIVE_RE = re.compile(r"^[A-Za-z]:")
 

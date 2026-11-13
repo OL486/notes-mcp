@@ -45,7 +45,8 @@ def test_max_three_fragments_per_note(tmp_path) -> None:
 
 def test_respects_character_budget(settings: Settings) -> None:
     outcome = run_search(settings, "MCP", limit=5)
-    assert len(outcome.text) <= settings.search_budget + 250  # 250 给截断提示留余量
+    # 严格断言：含截断提示在内也不得超过预算（见 budget.py 的承诺）
+    assert len(outcome.text) <= settings.search_budget
 
 
 def test_truncates_and_says_so_when_budget_tight(tmp_path) -> None:
@@ -64,7 +65,7 @@ def test_truncates_and_says_so_when_budget_tight(tmp_path) -> None:
     outcome = run_search(tight, "MCP", limit=6)
     assert outcome.truncated is True
     assert "已截断" in outcome.text
-    assert len(outcome.text) <= 600 + 250
+    assert len(outcome.text) <= 600
 
 
 def test_no_match_gives_actionable_hint(settings: Settings) -> None:

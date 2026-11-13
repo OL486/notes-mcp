@@ -63,7 +63,7 @@ def test_list_recent_respects_budget(tmp_path: Path) -> None:
     outcome = run_list_recent(settings, days=7)
     assert outcome.truncated is True
     assert "已截断" in outcome.text
-    assert len(outcome.text) <= 800 + 250
+    assert len(outcome.text) <= 800
 
 
 def test_stats_counts_and_tags(settings: Settings) -> None:

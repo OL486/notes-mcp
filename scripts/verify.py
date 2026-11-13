@@ -81,7 +81,7 @@ async def part_a() -> None:
         print("  " + text[:600].replace("\n", "\n  "))
         check("search 未报错", not result.is_error)
         check("search 返回片段（含行号）", "第 " in text and "行]" in text)
-        check("search 未超预算", len(text) <= 8000 + 250, f"{len(text)} 字符")
+        check("search 未超预算", len(text) <= 8000, f"{len(text)} 字符")
         check("search 未返回整篇（不含笔记末尾标签行）", len(text) < 4000, f"{len(text)} 字符")
 
         # --- read_note ---

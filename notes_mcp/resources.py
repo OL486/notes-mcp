@@ -8,12 +8,12 @@ Tool 由模型决定调用，Resource 由客户端/用户决定读取（挂到�
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
-from .budget import clip_with_notice
 from .config import Settings
-from .safety import resolve_note_path, to_note_uri
-from .store import load_all, load_note
+from .notes.store import FilesystemNoteStore
+from .safety import to_note_uri
+from .services.read_note import read_note
+from .tools.common import _fmt_iso_time
 
 INDEX_URI = "notes://index"
 NOTE_URI_TEMPLATE = "notes://note/{+path}"
@@ -32,7 +32,7 @@ def build_index(settings: Settings) -> str:
     结果 `indent=2` 的缩进和换行完全没算进去，200 篇笔记实测吐出 11K 字符——
     预算表直接失真。现在每加一条就真实序列化一次来量。
     """
-    notes = load_all(settings.root)
+    notes = FilesystemNoteStore(settings.root).load_all()
     notes.sort(key=lambda n: n.mtime, reverse=True)
 
     # 给 truncated 时的 hint 字段预留空间，避免"刚好卡线再加一句就超"。
@@ -46,7 +46,7 @@ def build_index(settings: Settings) -> str:
                 "uri": to_note_uri(note.rel),
                 "path": note.rel,
                 "title": note.title,
-                "mtime": datetime.fromtimestamp(note.mtime).isoformat(timespec="minutes"),
+                "mtime": _fmt_iso_time(note.mtime),
                 "units": note.units,
                 "tags": list(note.tags),
             }
@@ -89,15 +89,12 @@ def read_note_resource(settings: Settings, path: str) -> str:
     返回体积同样封顶：Resource 虽然名义上由客户端决定何时读取，但不少客户端
     会把资源内容直接塞进上下文，一篇 200KB 的笔记足以毁掉整轮对话。
     """
-    target = resolve_note_path(settings.root, path)
-    note = load_note(settings.root, target)
-
-    text, _ = clip_with_notice(
-        note.text,
-        settings.max_note_chars,
-        "请改用 read_note 工具分段读取，或用 search_notes 定位关键段落。",
-    )
-    return text
+    # 唯一实现在 notes_mcp.services.read_note；这里只传 Resource 侧的截断提示文案。
+    return read_note(
+        settings,
+        path,
+        advice="请改用 read_note 工具分段读取，或用 search_notes 定位关键段落。",
+    ).text
 
 
 __all__ = [

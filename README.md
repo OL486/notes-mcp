@@ -201,9 +201,18 @@ macOS / Linux 上 `command` 换成 `/Users/<你>/notes-venv/bin/notes-mcp`。
 notes_mcp/
 ├── config.py     运行期配置（根目录 + 各类预算）
 ├── safety.py     不可信路径校验（工具与资源共用同一套规则）
-├── store.py      扫描 / 解析 / 片段化检索（朴素实现）
+├── notes/        扫描 / 解析 / 片段化检索 / 存储（原 store.py 的拆分）
+│   ├── models.py  Note / Fragment / NoteHit
+│   ├── scan.py    扫描候选笔记文件 + 后缀白名单
+│   ├── parse.py   标题 / 标签 / 字数等纯文本解析
+│   ├── search.py  子串检索 + 片段合并 + 渲染
+│   └── store.py   NoteStore 协议 + 朴素文件系统实现
+├── store.py      兼容层（已废弃）：re-export notes/，一个版本后删除
 ├── budget.py     截断与预算拼装
-├── tools.py      四个 Tool 的纯逻辑（不认识 MCP，可单测）
+├── tools/        四个 Tool 的纯逻辑（不认识 MCP，可单测，原 tools.py 的拆分）
+│   ├── search.py / read.py / recent.py / stats.py / common.py
+├── services/
+│   └── read_note.py  读单篇的唯一实现（Tool 与 Resource 共用）
 ├── resources.py  两个 Resource 的纯逻辑
 ├── prompts.py    Prompt 模板
 ├── server.py     注册到 MCPServer
