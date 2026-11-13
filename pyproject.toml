@@ -1,6 +1,6 @@
 [project]
 name = "notes-mcp"
-version = "0.1.0"
+dynamic = ["version"]
 description = "只读的本地 Markdown 笔记 MCP Server（MCP 2026-07-28 / mcp[cli] >= 2.0）"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,11 +15,16 @@ notes-mcp = "notes_mcp.__main__:main"
 dev = [
     "pytest>=8.0",
     "anyio>=4.9",
+    "ruff>=0.5",
+    "mypy>=1.0",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "notes_mcp/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["notes_mcp"]
@@ -27,3 +32,15 @@ packages = ["notes_mcp"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true

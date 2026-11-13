@@ -17,10 +17,17 @@ from pathlib import Path
 import anyio
 from mcp.client import Client
 from mcp.client.stdio import StdioServerParameters
+from mcp.types import TextContent
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 NOTES_ROOT = PROJECT_ROOT / "sample_notes"
 TOPIC = sys.argv[1] if len(sys.argv) > 1 else "MCP"
+
+
+def _text(block: object) -> str:
+    """内容块必须是文本：mypy 层面 content 是联合类型，直接 .text 会漏掉分支。"""
+    assert isinstance(block, TextContent), f"返回了非文本内容：{type(block)}"
+    return block.text
 
 
 def _brief(text: str, limit: int = 260) -> str:
@@ -42,16 +49,16 @@ async def main() -> None:
         # 第 0 步：客户端取 prompt 模板（这一步是用户侧触发的 prompts/get）
         prompt = await client.get_prompt("weekly-review", {"topic": TOPIC})
         print("[prompts/get] weekly-review")
-        print(f"  模板前 80 字：{_brief(prompt.messages[0].content.text, 80)}\n")
+        print(f"  模板前 80 字：{_brief(_text(prompt.messages[0].content), 80)}\n")
 
         # 第 1 步：确认本周动过哪些笔记
         step1 = await client.call_tool("list_recent", {"days": 7})
         print("[tools/call] list_recent  arguments={'days': 7}")
-        print(f"  -> {_brief(step1.content[0].text, 420)}\n")
+        print(f"  -> {_brief(_text(step1.content[0]), 420)}\n")
 
         # 第 2 步：按主题检索片段
         step2 = await client.call_tool("search_notes", {"query": TOPIC, "limit": 8})
-        search_text = step2.content[0].text
+        search_text = _text(step2.content[0])
         print(f"[tools/call] search_notes  arguments={{'query': '{TOPIC}', 'limit': 8}}")
         print(f"  -> 返回 {len(search_text)} 字符，is_error={step2.is_error}")
         print(f"  -> {_brief(search_text, 500)}\n")
@@ -60,7 +67,7 @@ async def main() -> None:
         first_note = "daily/2026-10-26.md"
         step3 = await client.call_tool("read_note", {"path": first_note})
         print(f"[tools/call] read_note  arguments={{'path': '{first_note}'}}")
-        print(f"  -> 返回 {len(step3.content[0].text)} 字符\n")
+        print(f"  -> 返回 {len(_text(step3.content[0]))} 字符\n")
 
         print("调用序列完成。接上真实客户端后，模型应当发起同样这三步，")
         print("然后基于返回的片段写 3 条要点，并在每条后面标注来源笔记路径。")

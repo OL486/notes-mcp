@@ -11,6 +11,7 @@ import re
 from pathlib import Path, PureWindowsPath
 from urllib.parse import quote
 
+from .errors import PathRejected
 from .notes.scan import ALLOWED_SUFFIXES
 
 """只允许 Markdown。少一类文件就少一类被读取的理由。
@@ -21,22 +22,6 @@ from .notes.scan import ALLOWED_SUFFIXES
 """
 
 _DRIVE_RE = re.compile(r"^[A-Za-z]:")
-
-
-class PathRejected(Exception):
-    """路径被拒绝。
-
-    message 会原样出现在工具的 isError 内容里，所以必须是**给模型看的**说明：
-    说清哪里错了 + 怎么改，模型才能自我纠正后重试。
-    """
-
-    def __init__(self, reason: str, hint: str = "") -> None:
-        super().__init__(reason)
-        self.reason = reason
-        self.hint = hint
-
-    def __str__(self) -> str:
-        return f"{self.reason}。{self.hint}" if self.hint else self.reason
 
 
 def _looks_absolute(raw: str) -> bool:
@@ -69,7 +54,10 @@ def resolve_note_path(
     只有 resolve() 展开链接之后再比较，才拦得住。
     """
     if not isinstance(raw, str) or not raw.strip():
-        raise PathRejected("path 不能为空", "请传入相对笔记根目录的 Markdown 路径，例如 daily/2026-10-01.md")
+        raise PathRejected(
+            "path 不能为空",
+            "请传入相对笔记根目录的 Markdown 路径，例如 daily/2026-10-01.md",
+        )
 
     if "\x00" in raw:
         raise PathRejected("path 含 NUL 字节", "这是非法输入，请重新给出正常的相对路径")

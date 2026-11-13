@@ -46,7 +46,11 @@ def truncation_notice(returned: int, total: int, budget: int, advice: str) -> st
 
 
 NOTICE_RESERVE = 240
-"""给截断提示预留的字符数。提示本身必须算进预算，否则"20000 上限"会吐出 20100。"""
+"""给截断提示预留的字符数（历史固定值）。
+
+clip_with_notice 现在按实际提示长度动态算预留，不再用这个常量：
+提示长度由 advice 决定，advice 超长（例如 300 字符）时固定 240 会溢出。
+本常量仅保留作兼容，不再参与计算。"""
 
 
 def clip_with_notice(text: str, budget: int, advice: str) -> tuple[str, bool]:
@@ -54,11 +58,27 @@ def clip_with_notice(text: str, budget: int, advice: str) -> tuple[str, bool]:
 
     这是 read_note / 单篇 Resource / notes_stats 共用的收口函数：
     分散在各处手写"先截断再拼提示"必然有一处忘了算提示的长度。
+
+    预留按实际提示长度动态算：先用返回值为 0 的提示量出提示的固定部分，
+    再按 budget 的位数保守修正（返回值的位数变化最多影响几字符），
+    最后若仍溢出就按超出的量再缩一次正文。固定 240 的隐含假设是
+    "提示永远短于 240"，advice 一长就破。
     """
     if len(text) <= budget:
         return text, False
-    body, _ = clip_text(text, max(1, budget - NOTICE_RESERVE))
-    return body + truncation_notice(len(body), len(text), budget, advice), True
+    reserve = len(truncation_notice(0, len(text), budget, advice)) + len(str(budget))
+    body_limit = budget - reserve
+    if body_limit <= 0:
+        # 预算连提示都装不下：只返回截断后的提示本身，保证不超预算。
+        notice = truncation_notice(0, len(text), budget, advice)
+        return clip_text(notice, budget)[0], True
+    body, _ = clip_text(text, body_limit)
+    notice = truncation_notice(len(body), len(text), budget, advice)
+    excess = len(body) + len(notice) - budget
+    if excess > 0:
+        body, _ = clip_text(body, max(0, len(body) - excess))
+        notice = truncation_notice(len(body), len(text), budget, advice)
+    return body + notice, True
 
 
 def fit_blocks(
@@ -97,7 +117,8 @@ def fit_blocks(
 
     def _notice(count: int) -> str:
         return (
-            f"\n\n[已截断：共 {len(blocks)} 个结果块，受 {budget} 字符预算限制只返回了前 {count} 个。"
+            f"\n\n[已截断：共 {len(blocks)} 个结果块，"
+            f"受 {budget} 字符预算限制只返回了前 {count} 个。"
             f"{overflow_advice}]"
         )
 
@@ -107,6 +128,17 @@ def fit_blocks(
         while kept and len(text) + len(_notice(len(kept))) > budget:
             kept.pop()
             text = header + "".join(kept)
+        if len(text) + len(_notice(len(kept))) > budget:
+            # 走到这里说明 kept 已空、仍超预算，即 header 本身就超了预算：
+            # 把 header 截到能装下提示为止（提示不能丢，它是"内容不全"的唯一信号）。
+            avail = budget - len(_notice(len(kept)))
+            if avail <= 0:
+                return clip_text(text + _notice(len(kept)), budget)[0], 0, True
+            text = clip_text(header, avail)[0]
         text += _notice(len(kept))
+    elif len(text) > budget:
+        # 无截断标记却超预算：只可能 header 本身超了，硬截到预算内。
+        text = clip_text(text, budget)[0]
+        truncated = True
 
     return text, len(kept), truncated

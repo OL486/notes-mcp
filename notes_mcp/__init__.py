@@ -3,6 +3,7 @@
 分层：
     config.py     运行期配置（根目录、各类预算）
     safety.py     不可信路径的校验（工具和资源共用）
+    errors.py     共享异常类型（PathRejected，避免循环导入）
     notes/        扫描、解析、检索、存储（原 store.py 的拆分）
       models.py   Note / Fragment / NoteHit 数据模型
       scan.py     扫描候选笔记文件 + 后缀白名单

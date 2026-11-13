@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from ..budget import fit_blocks
 from ..config import Settings
-from ..notes.store import FilesystemNoteStore
+from ..notes.store import make_store
 from .common import _clamp, _fmt_time
 
 
@@ -23,7 +23,7 @@ def run_list_recent(settings: Settings, days: int = 7) -> RecentOutcome:
     days = _clamp(days, 1, 3650, default=7)
     cutoff = time.time() - days * 86_400
 
-    notes = FilesystemNoteStore(settings.root).load_all()
+    notes = make_store(settings).load_all()
     recent = [n for n in notes if n.mtime >= cutoff]
     recent.sort(key=lambda n: n.mtime, reverse=True)
 

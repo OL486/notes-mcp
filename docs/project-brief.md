@@ -1,7 +1,8 @@
 # [项目] notes-mcp：从零实现一个只读本地笔记 MCP Server（MCP 2026-07-28）
 
 > 这份文件就是 issue 正文，可以整段粘贴到 GitHub。
-> 代码已在本地完成并通过 `pytest`（60 个用例）+ `scripts/verify.py`（22 项端到端检查），
+> 代码已在本地完成并通过 `pytest`（120 个用例，119 通过、1 跳过）+ `scripts/verify.py`（22 项端到端检查），
+> 下方数字为后续优化 PR #5 时的快照，最新数字以 `uv run pytest` 为准。
 > 下方「交付清单」即当前实际状态。逐阶段的协议报文与讲解见 `docs/WALKTHROUGH.md`。
 
 ---
@@ -47,7 +48,7 @@
 - [x] **S4** `weekly-review` prompt + 上下文预算实测表
 - [x] **S5** 客户端接入配置（Claude Desktop / Cursor）+ 真实任务调用序列
 - [x] **S6** Streamable HTTP 传输（含有状态 / 无状态两种模式实测）
-- [x] 60 个 pytest 用例（含 8 个端到端：真起子进程走 stdio）
+- [x] 120 个 pytest 用例（含 8 个端到端：真起子进程走 stdio）
 - [x] `scripts/verify.py`：22 项检查，含 **stdout 纯净度**（每行必须是合法 JSON-RPC）
 - [x] 6 篇示例笔记 + 可复现的 mtime 脚本
 
@@ -101,7 +102,7 @@
 ### 规模
 
 - 服务端 `notes_mcp/` 1257 行（10 个文件，零额外依赖）
-- 测试 694 行 / 60 个用例；脚本 412 行
+- 测试 1398 行 / 120 个用例；脚本约 500 行
 
 ---
 
@@ -210,7 +211,7 @@ npx @modelcontextprotocol/inspector@2.12.0 --cli --protocol-era modern \
 # 2. 功能 + stdout 纯净度（22 项）
 uv run python scripts/verify.py
 
-# 3. 单元 + 端到端（60 个用例）
+# 3. 单元 + 端到端（120 个用例）
 uv run pytest
 
 # 4. 预算表
@@ -223,5 +224,5 @@ uv run python scripts/demo_weekly_review.py MCP
 uv run notes-mcp --root ./sample_notes --transport streamable-http --port 8932 --stateless-http
 ```
 
-当前状态：以上 1-6 全部通过。`pytest` 覆盖 60 个用例，其中 8 个是端到端
+当前状态：以上 1-6 全部通过。`pytest` 覆盖 120 个用例，其中 8 个是端到端
 （真起子进程、走 stdio、发真实 JSON-RPC），包括"stdout 每行必须是合法 JSON"这一条。

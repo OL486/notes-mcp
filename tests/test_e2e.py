@@ -17,8 +17,21 @@ import anyio
 import pytest
 from mcp.client import Client
 from mcp.client.stdio import StdioServerParameters
+from mcp.types import TextContent, TextResourceContents
 
 MODERN = "2026-07-28"
+
+
+def _text(block: object) -> str:
+    """内容块必须是文本：mypy 层面 content 是联合类型，直接 .text 会漏掉分支。"""
+    assert isinstance(block, TextContent), f"返回了非文本内容：{type(block)}"
+    return block.text
+
+
+def _resource_text(contents: list) -> str:
+    item = contents[0]
+    assert isinstance(item, TextResourceContents), f"资源返回了非文本内容：{type(item)}"
+    return item.text
 
 META = {
     "io.modelcontextprotocol/protocolVersion": MODERN,
@@ -28,7 +41,9 @@ META = {
 
 
 def _params(root: Path) -> StdioServerParameters:
-    return StdioServerParameters(command=sys.executable, args=["-m", "notes_mcp", "--root", str(root)])
+    return StdioServerParameters(
+        command=sys.executable, args=["-m", "notes_mcp", "--root", str(root)]
+    )
 
 
 def test_modern_client_sees_all_primitives(notes_root: Path) -> None:
@@ -42,7 +57,10 @@ def test_modern_client_sees_all_primitives(notes_root: Path) -> None:
             resources = [r.uri for r in (await client.list_resources()).resources]
             assert "notes://index" in resources
 
-            templates = [t.uri_template for t in (await client.list_resource_templates()).resource_templates]
+            templates = [
+                t.uri_template
+                for t in (await client.list_resource_templates()).resource_templates
+            ]
             assert "notes://note/{+path}" in templates
 
             prompts = [p.name for p in (await client.list_prompts()).prompts]
@@ -59,7 +77,7 @@ def test_tool_errors_are_structured(notes_root: Path) -> None:
             for bad in ("../../secret.md", "/etc/passwd", "daily/nope.md"):
                 result = await client.call_tool("read_note", {"path": bad})
                 assert result.is_error is True, bad
-                message = result.content[0].text
+                message = _text(result.content[0])
                 assert "Traceback" not in message
                 assert len(message) > 10
 
@@ -69,14 +87,14 @@ def test_tool_errors_are_structured(notes_root: Path) -> None:
 def test_resources_and_prompt_roundtrip(notes_root: Path) -> None:
     async def scenario() -> None:
         async with Client(_params(notes_root), mode=MODERN) as client:
-            payload = json.loads((await client.read_resource("notes://index")).contents[0].text)
+            payload = json.loads(_resource_text((await client.read_resource("notes://index")).contents))
             assert payload["count"] == 3
 
-            body = (await client.read_resource("notes://note/daily/2026-10-25.md")).contents[0].text
+            body = _resource_text((await client.read_resource("notes://note/daily/2026-10-25.md")).contents)
             assert "tools/call" in body
 
             prompt = await client.get_prompt("weekly-review", {"topic": "MCP"})
-            text = prompt.messages[0].content.text
+            text = _text(prompt.messages[0].content)
             assert "MCP" in text and "search_notes" in text
 
     anyio.run(scenario)
@@ -150,6 +168,6 @@ def test_list_recent_filters_by_days(notes_root: Path, days: int) -> None:
         async with Client(_params(notes_root), mode=MODERN) as client:
             result = await client.call_tool("list_recent", {"days": days})
             assert not result.is_error
-            assert "最近" in result.content[0].text
+            assert "最近" in _text(result.content[0])
 
     anyio.run(scenario)

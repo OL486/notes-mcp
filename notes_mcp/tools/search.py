@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from ..budget import fit_blocks
 from ..config import Settings
 from ..notes.search import render_hit, search_notes
-from ..notes.store import FilesystemNoteStore
+from ..notes.store import make_store
 from .common import _clamp
 
 
@@ -35,7 +35,7 @@ def run_search(settings: Settings, query: str, limit: int = 5) -> SearchOutcome:
 
     limit = _clamp(limit, 1, settings.max_limit, default=5)
 
-    notes = FilesystemNoteStore(settings.root).load_all()
+    notes = make_store(settings).load_all()
     hits = search_notes(
         notes,
         needle,

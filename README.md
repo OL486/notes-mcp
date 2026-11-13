@@ -186,6 +186,16 @@ macOS / Linux 上 `command` 换成 `/Users/<你>/notes-venv/bin/notes-mcp`。
 | `NOTES_MCP_ROOT` | `./notes` | 笔记根目录 |
 | `NOTES_MCP_MAX_NOTE_CHARS` | `20000` | `read_note` / 单篇 Resource 的返回上限 |
 | `NOTES_MCP_SEARCH_BUDGET` | `8000` | `search_notes` 总预算 |
+| `NOTES_MCP_INDEX_BUDGET` | `8000` | `notes://index` 的返回预算 |
+| `NOTES_MCP_RECENT_BUDGET` | `4000` | `list_recent` 的返回预算 |
+| `NOTES_MCP_STATS_BUDGET` | `3000` | `notes_stats` 的返回预算 |
+| `NOTES_MCP_FRAGMENTS_PER_NOTE` | `3` | 每篇笔记最多返回几个片段 |
+| `NOTES_MCP_CONTEXT_LINES` | `2` | 每个命中行前后各带几行上下文 |
+| `NOTES_MCP_MAX_FRAGMENT_LINES` | `15` | 单个片段最多多少行 |
+| `NOTES_MCP_MAX_LIMIT` | `20` | `search_notes` / `list_recent` 的参数上限 |
+
+所有整数字段必须为正整数（`Settings.__post_init__` 校验），
+环境变量解析失败或为非正数时退回默认值；显式参数优先于环境变量。
 
 命令行参数：`--root`、`--transport {stdio,streamable-http}`、`--host`、`--port`、
 `--stateless-http`、`--log-level`。
@@ -200,6 +210,7 @@ macOS / Linux 上 `command` 换成 `/Users/<你>/notes-venv/bin/notes-mcp`。
 ```
 notes_mcp/
 ├── config.py     运行期配置（根目录 + 各类预算）
+├── errors.py     共享异常类型（PathRejected，避免循环导入）
 ├── safety.py     不可信路径校验（工具与资源共用同一套规则）
 ├── notes/        扫描 / 解析 / 片段化检索 / 存储（原 store.py 的拆分）
 │   ├── models.py  Note / Fragment / NoteHit
@@ -243,6 +254,10 @@ notes_mcp/
   （改造方向见 `docs/WALKTHROUGH.md` S1 后半段）。
 - **只读**：没有任何写路径。需要写入请另开一个 server，并显式做权限与备份。
 - **单进程单根目录**：一个进程只服务一个 `--root`。多个目录就配多个 server 条目。
+- **不要把 `--host` 设成 `0.0.0.0`**：streamable-http 默认只监听 `127.0.0.1`（本机）。
+  一旦绑到 `0.0.0.0`，局域网内任何人都能读你的笔记——这个 server 没有认证。
+- **符号链接**：扫描只跟随解析后仍在根目录内的链接，指向根外的链接会被跳过；
+  `read_note` 对根外链接同样拒绝。根内链接仍可正常读取。
 
 ---
 
@@ -250,14 +265,14 @@ notes_mcp/
 
 ```bash
 uv sync                                  # 含 dev 依赖（pytest / anyio）
-uv run pytest                            # 60 个用例
-uv run python scripts/verify.py          # 22 项端到端检查（真实 stdio + 报文纯净度）
+uv run pytest                            # 单元测试 + 端到端测试
+uv run python scripts/verify.py          # 端到端检查（真实 stdio + 报文纯净度）
 uv run python scripts/budget_report.py   # 打印各类返回的实测体积，确认没越预算
 uv run python scripts/demo_weekly_review.py   # 按 prompt 模板走一遍完整调用链
 ```
 
 实施过程与逐阶段协议报文见 [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md)，
-可复现的验收结论见 [`ISSUE.md`](ISSUE.md)。
+可复现的验收结论见 [`docs/project-brief.md`](docs/project-brief.md)（历史快照）。
 
 ## 许可证
 

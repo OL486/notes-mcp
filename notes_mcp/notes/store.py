@@ -13,9 +13,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
+from ..config import Settings
+from ..errors import PathRejected
 from .models import Note
 from .parse import count_units, decode_bytes, extract_tags, extract_title
 from .scan import iter_note_files
+
+
+def make_store(settings: Settings) -> FilesystemNoteStore:
+    """按 Settings 建一个文件系统存储。调用方统一走这里，不要直接
+    `FilesystemNoteStore(settings.root)`——以后换实现时只改这一处。"""
+    return FilesystemNoteStore(settings.root)
 
 
 class NoteStore(Protocol):
@@ -37,6 +45,14 @@ class FilesystemNoteStore:
         self.root = root
 
     def load_note(self, path: Path) -> Note:
+        # 二次校验：直接调 load_note 的调用方可能绕过 resolve_note_path，
+        # 这里再确认一次解析后的真实路径仍在根目录内（符号链接逃逸）。
+        resolved = path.resolve(strict=False)
+        if not resolved.is_relative_to(self.root.resolve()):
+            raise PathRejected(
+                f"路径越界：{path} 解析后落在笔记根目录之外",
+                "只允许笔记根目录内的相对路径（符号链接指向外部同样会被拒绝）",
+            )
         text = decode_bytes(path.read_bytes())
         rel = path.relative_to(self.root).as_posix()
         return Note(
@@ -54,17 +70,9 @@ class FilesystemNoteStore:
         for path in iter_note_files(self.root):
             try:
                 notes.append(self.load_note(path))
-            except OSError:
+            except (OSError, PathRejected):
                 # 单篇读失败（权限、文件被占用）不该让整个检索失败。
+                # PathRejected 在这里只可能来自扫描与读取之间的竞态
+                # （符号链接目标被换成根外文件），同样跳过该篇即可。
                 continue
         return notes
-
-
-def load_note(root: Path, path: Path) -> Note:
-    """模块级便捷函数：读盘 + 解析成 Note。root 只用来算相对路径。"""
-    return FilesystemNoteStore(root).load_note(path)
-
-
-def load_all(root: Path) -> list[Note]:
-    """模块级便捷函数：全量加载。"""
-    return FilesystemNoteStore(root).load_all()

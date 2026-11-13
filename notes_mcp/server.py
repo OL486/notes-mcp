@@ -80,10 +80,12 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
         """query: 关键词（中英文子串匹配，大小写不敏感）；limit: 最多返回几篇笔记的片段。"""
         try:
             return tool_impl.run_search(settings, query, limit).text
-        except QueryRejected as exc:
+        except (QueryRejected, ValueError, OSError) as exc:
             # 参数错误是"可预期的失败"，用 ToolError 让客户端收到 isError=true +
             # 可读文本，模型能据此改写参数重试；抛裸异常只会得到一句
             # "Error executing tool search_notes"，模型学不到任何东西。
+            # QueryRejected 是 ValueError 的子类；OSError 兜底读盘失败
+            # （例如扫描中途目录被删），同样不该漏成堆栈。
             raise ToolError(str(exc)) from exc
 
     @server.tool(
@@ -101,6 +103,12 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
             return tool_impl.run_read_note(settings, path).text
         except PathRejected as exc:
             raise ToolError(str(exc)) from exc
+        except OSError as exc:
+            # 校验与读盘之间的竞态（文件被删/被移走）由 services 层先转成
+            # PathRejected；这里再兜一层，防止未来有别的 OSError 路径漏网。
+            raise ToolError(
+                f"笔记读取失败：{path}。文件可能已被删除或移动，请重新读取索引。"
+            ) from exc
 
     @server.tool(
         name="list_recent",
@@ -112,15 +120,24 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
     )
     def list_recent(days: int = 7) -> str:
         """days: 回溯天数，1-3650，默认 7。"""
-        return tool_impl.run_list_recent(settings, days).text
+        try:
+            return tool_impl.run_list_recent(settings, days).text
+        except (ValueError, OSError) as exc:
+            raise ToolError(str(exc)) from exc
 
     @server.tool(
         name="notes_stats",
-        description="返回笔记总数、总字数、标签分布（解析正文里的 #tag）和最近修改时间。用于先摸清语料规模。",
+        description=(
+            "返回笔记总数、总字数、标签分布（解析正文里的 #tag）和最近修改时间。"
+            "用于先摸清语料规模。"
+        ),
         structured_output=False,
     )
     def notes_stats() -> str:
-        return tool_impl.run_stats(settings)
+        try:
+            return tool_impl.run_stats(settings)
+        except (ValueError, OSError) as exc:
+            raise ToolError(str(exc)) from exc
 
 
 # --------------------------------------------------------------------------- #
@@ -144,7 +161,11 @@ def _register_resources(server: MCPServer, settings: Settings) -> None:
         mime_type="application/json",
     )
     def notes_index() -> str:
-        return build_index(settings)
+        try:
+            return build_index(settings)
+        except (OSError, ValueError) as exc:
+            # 资源读取失败没有 isError 通道，只能走 JSON-RPC error。
+            raise ResourceNotFoundError(str(exc)) from exc
 
     @server.resource(
         NOTE_URI_TEMPLATE,
@@ -161,6 +182,10 @@ def _register_resources(server: MCPServer, settings: Settings) -> None:
             # ResourceNotFoundError 会映射成 -32602（invalid params），
             # 比笼统的 -32603 更能让客户端判断"是路径错了"而不是"服务器炸了"。
             raise ResourceNotFoundError(str(exc)) from exc
+        except OSError as exc:
+            raise ResourceNotFoundError(
+                f"笔记读取失败：{path}。文件可能已被删除或移动，请重新读取索引。"
+            ) from exc
 
 
 # --------------------------------------------------------------------------- #

@@ -14,8 +14,8 @@ from dataclasses import dataclass
 
 from ..budget import clip_with_notice
 from ..config import Settings
-from ..notes.store import FilesystemNoteStore
-from ..safety import resolve_note_path
+from ..notes.store import make_store
+from ..safety import PathRejected, resolve_note_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,7 +31,17 @@ def read_note(settings: Settings, path: str, *, advice: str) -> ReadOutcome:
     越界/不存在/类型不符都会抛 PathRejected（调用方负责翻译成协议错误）。
     """
     target = resolve_note_path(settings.root, path)  # 越界/不存在/类型不符都会抛 PathRejected
-    note = FilesystemNoteStore(settings.root).load_note(target)
+    try:
+        note = make_store(settings).load_note(target)
+    except PathRejected:
+        raise
+    except OSError as exc:
+        # 校验通过后、读盘之前文件被删/被移走的竞态：不要让裸 OSError
+        # 漏到协议层，统一转成模型能读懂的 PathRejected。
+        raise PathRejected(
+            f"笔记读取失败：{path}",
+            "文件可能在读取时被删除或移动，请先读 notes://index 确认路径再重试。",
+        ) from exc
 
     text, truncated = clip_with_notice(
         note.text,
