@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-from notes_mcp.store import (
+import pytest
+
+from notes_mcp.notes import (
     count_units,
     decode_bytes,
     extract_tags,
     extract_title,
     iter_note_files,
-    load_all,
 )
+from notes_mcp.notes.store import FilesystemNoteStore
+from notes_mcp.safety import PathRejected
 
 
 def test_title_from_first_heading() -> None:
@@ -67,6 +71,47 @@ def test_skips_hidden_and_non_markdown(notes_root: Path) -> None:
 
 
 def test_load_all_is_sorted_and_stable(notes_root: Path) -> None:
-    first = [n.rel for n in load_all(notes_root)]
-    second = [n.rel for n in load_all(notes_root)]
+    store = FilesystemNoteStore(notes_root)
+    first = [n.rel for n in store.load_all()]
+    second = [n.rel for n in store.load_all()]
     assert first == second == sorted(first)
+
+
+def test_scan_skips_symlink_pointing_outside_root(notes_root: Path, tmp_path: Path) -> None:
+    """SEC-A：根内 linkfile.md -> 根外 secret.md，扫描必须跳过，
+    load_all / search 不能因此泄漏根外文件的内容。"""
+    link = notes_root / "linkfile.md"
+    try:
+        os.symlink(tmp_path / "secret.md", link)
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+
+    rels = {p.relative_to(notes_root).as_posix() for p in iter_note_files(notes_root)}
+    assert "linkfile.md" not in rels
+
+    notes = FilesystemNoteStore(notes_root).load_all()
+    assert all("不该被读到" not in note.text for note in notes)
+
+
+def test_scan_keeps_symlink_inside_root(notes_root: Path) -> None:
+    """指向根目录内部的软链接仍会被扫描（与 resolve_note_path 的行为一致）。"""
+    link = notes_root / "alias.md"
+    try:
+        os.symlink(notes_root / "projects" / "design.md", link)
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+
+    rels = {p.relative_to(notes_root).as_posix() for p in iter_note_files(notes_root)}
+    assert "alias.md" in rels
+
+
+def test_load_note_rejects_symlink_outside_root(notes_root: Path, tmp_path: Path) -> None:
+    """load_note 的二次校验：直接调用也不允许读根外文件。"""
+    link = notes_root / "linkfile.md"
+    try:
+        os.symlink(tmp_path / "secret.md", link)
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+
+    with pytest.raises(PathRejected):
+        FilesystemNoteStore(notes_root).load_note(link)
