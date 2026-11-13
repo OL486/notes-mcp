@@ -14,7 +14,7 @@ from .models import Fragment, Note, NoteHit
 from .parse import TAG_RE, count_units, decode_bytes, extract_tags, extract_title
 from .scan import ALLOWED_SUFFIXES, SKIP_DIRS, iter_note_files
 from .search import render_hit, search_notes
-from .store import FilesystemNoteStore, NoteStore, load_all, load_note
+from .store import FilesystemNoteStore, NoteStore, make_store
 
 __all__ = [
     "ALLOWED_SUFFIXES",
@@ -30,8 +30,7 @@ __all__ = [
     "extract_tags",
     "extract_title",
     "iter_note_files",
-    "load_all",
-    "load_note",
+    "make_store",
     "render_hit",
     "search_notes",
 ]

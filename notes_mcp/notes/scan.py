@@ -19,7 +19,12 @@ def iter_note_files(root: Path) -> list[Path]:
     """列出根目录下所有候选笔记文件，按路径排序保证输出稳定。
 
     排序很重要：不稳定顺序会让同一查询两次返回不同结果，模型会以为数据变了。
+
+    符号链接：只跟随解析后仍落在根目录内的目标。指向根目录外的链接
+    会被跳过——否则 search / list_recent 会把根外文件的内容泄漏进结果，
+    read_note 的 resolve 校验拦得住单篇读取，却拦不住扫描。
     """
+    resolved_root = root.resolve()
     found: list[Path] = []
     for path in root.rglob("*"):
         if not path.is_file():
@@ -31,6 +36,12 @@ def iter_note_files(root: Path) -> list[Path]:
         if any(part.startswith(".") or part in SKIP_DIRS for part in rel_parts[:-1]):
             continue
         if rel_parts[-1].startswith("."):
+            continue
+        try:
+            resolved = path.resolve(strict=False)
+        except OSError:
+            continue
+        if not resolved.is_relative_to(resolved_root):
             continue
         found.append(path)
     found.sort(key=lambda p: p.relative_to(root).as_posix())

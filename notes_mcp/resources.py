@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 
 from .config import Settings
-from .notes.store import FilesystemNoteStore
+from .notes.store import make_store
 from .safety import to_note_uri
 from .services.read_note import read_note
 from .tools.common import _fmt_iso_time
@@ -32,7 +32,7 @@ def build_index(settings: Settings) -> str:
     结果 `indent=2` 的缩进和换行完全没算进去，200 篇笔记实测吐出 11K 字符——
     预算表直接失真。现在每加一条就真实序列化一次来量。
     """
-    notes = FilesystemNoteStore(settings.root).load_all()
+    notes = make_store(settings).load_all()
     notes.sort(key=lambda n: n.mtime, reverse=True)
 
     # 给 truncated 时的 hint 字段预留空间，避免"刚好卡线再加一句就超"。
@@ -67,7 +67,6 @@ def _dump_index(
     truncated: bool,
 ) -> str:
     payload: dict[str, object] = {
-        "root": str(settings.root),
         "count": total,
         "returned": len(entries),
         "truncated": truncated or len(entries) < total,

@@ -8,6 +8,7 @@ stdio 传输下这个文件承担一个额外责任：**保证 stdout 只有协�
 from __future__ import annotations
 
 import argparse
+import contextlib
 import logging
 import sys
 
@@ -27,14 +28,19 @@ def _configure_stderr_logging(level: str) -> None:
     """
     reconfigure = getattr(sys.stderr, "reconfigure", None)
     if reconfigure is not None:
-        try:
+        # 被重定向到不支持重配置的对象时忽略
+        with contextlib.suppress(ValueError, OSError):
             reconfigure(encoding="utf-8", errors="replace")
-        except (ValueError, OSError):  # 被重定向到不支持重配置的对象时忽略
-            pass
 
     handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s"))
-    logging.basicConfig(level=getattr(logging, level.upper(), logging.WARNING), handlers=[handler], force=True)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+    )
+    logging.basicConfig(
+        level=getattr(logging, level.upper(), logging.WARNING),
+        handlers=[handler],
+        force=True,
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -53,7 +59,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default="stdio",
         help="传输方式。stdio 给本地客户端用；streamable-http 给远程/多客户端用。",
     )
-    parser.add_argument("--host", default="127.0.0.1", help="streamable-http 监听地址（默认仅本机）。")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="streamable-http 监听地址（默认仅本机）。",
+    )
     parser.add_argument("--port", type=int, default=8000, help="streamable-http 监听端口。")
     parser.add_argument(
         "--stateless-http",
