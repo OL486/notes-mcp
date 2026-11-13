@@ -77,3 +77,63 @@ def test_explicit_parameter_beats_env_var(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv(ENV_MAX_NOTE_CHARS, "1000")
     settings = load_settings(tmp_path, max_note_chars=777)
     assert settings.max_note_chars == 777
+
+
+def test_all_fields_exposed_via_explicit_parameters(tmp_path: Path) -> None:
+    """其余 7 个字段也能用显式参数覆盖，不再只能改前两个。"""
+    settings = load_settings(
+        tmp_path,
+        index_budget=100,
+        recent_budget=200,
+        stats_budget=300,
+        fragments_per_note=2,
+        context_lines=1,
+        max_fragment_lines=5,
+        max_limit=10,
+    )
+    assert settings.index_budget == 100
+    assert settings.recent_budget == 200
+    assert settings.stats_budget == 300
+    assert settings.fragments_per_note == 2
+    assert settings.context_lines == 1
+    assert settings.max_fragment_lines == 5
+    assert settings.max_limit == 10
+
+
+def test_all_fields_exposed_via_env_vars(monkeypatch, tmp_path: Path) -> None:
+    from notes_mcp.config import (
+        ENV_CONTEXT_LINES,
+        ENV_FRAGMENTS_PER_NOTE,
+        ENV_INDEX_BUDGET,
+        ENV_MAX_FRAGMENT_LINES,
+        ENV_MAX_LIMIT,
+        ENV_RECENT_BUDGET,
+        ENV_STATS_BUDGET,
+    )
+
+    monkeypatch.setenv(ENV_INDEX_BUDGET, "100")
+    monkeypatch.setenv(ENV_RECENT_BUDGET, "200")
+    monkeypatch.setenv(ENV_STATS_BUDGET, "300")
+    monkeypatch.setenv(ENV_FRAGMENTS_PER_NOTE, "2")
+    monkeypatch.setenv(ENV_CONTEXT_LINES, "1")
+    monkeypatch.setenv(ENV_MAX_FRAGMENT_LINES, "5")
+    monkeypatch.setenv(ENV_MAX_LIMIT, "10")
+    settings = load_settings(tmp_path)
+    assert settings.index_budget == 100
+    assert settings.recent_budget == 200
+    assert settings.stats_budget == 300
+    assert settings.fragments_per_note == 2
+    assert settings.context_lines == 1
+    assert settings.max_fragment_lines == 5
+    assert settings.max_limit == 10
+
+
+def test_non_positive_field_is_rejected(tmp_path: Path) -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="max_note_chars"):
+        Settings(root=tmp_path, max_note_chars=0)
+    with pytest.raises(ValueError, match="search_budget"):
+        Settings(root=tmp_path, search_budget=-1)
+    with pytest.raises(ValueError, match="max_limit"):
+        load_settings(tmp_path, max_limit=0)

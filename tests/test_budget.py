@@ -7,13 +7,11 @@
 from __future__ import annotations
 
 from notes_mcp.budget import (
-    MIN_USEFUL_REMAINDER,
     clip_text,
     clip_with_notice,
     fit_blocks,
     truncation_notice,
 )
-
 
 # --------------------------------------------------------------------------- #
 # clip_text
@@ -105,6 +103,22 @@ def test_clip_with_notice_reports_returned_and_total() -> None:
     assert "300 字符预算" in clipped
 
 
+def test_clip_with_notice_long_advice_is_within_budget() -> None:
+    """提示文案本身很长时也不能溢出：旧实现按固定 240 预留，300 字符的
+    advice 会让含提示的总长度超过 budget。"""
+    clipped, truncated = clip_with_notice("y" * 5000, 500, "x" * 300)
+    assert truncated is True
+    assert "已截断" in clipped
+    assert len(clipped) <= 500
+
+
+def test_clip_with_notice_tiny_budget_is_within_budget() -> None:
+    """预算连提示都快装不下时，仍保证不超预算。"""
+    clipped, truncated = clip_with_notice("y" * 5000, 50, "x" * 300)
+    assert truncated is True
+    assert len(clipped) <= 50
+
+
 # --------------------------------------------------------------------------- #
 # fit_blocks
 # --------------------------------------------------------------------------- #
@@ -159,3 +173,20 @@ def test_fit_blocks_min_useful_remainder_is_respected() -> None:
     assert returned == 0
     assert "x" * 10 not in text
     assert len(text) <= 700
+
+
+def test_fit_blocks_header_alone_over_budget_is_within_budget() -> None:
+    """header 本身（150 字符）就超过预算（100）时，仍保证输出不超预算，
+    且必须带截断提示。"""
+    text, returned, truncated = fit_blocks(["a" * 10], 100, header="h" * 150)
+    assert truncated is True
+    assert returned == 0
+    assert "已截断" in text
+    assert len(text) <= 100
+
+
+def test_fit_blocks_header_only_over_budget_is_within_budget() -> None:
+    text, returned, truncated = fit_blocks([], 100, header="h" * 150)
+    assert truncated is True
+    assert returned == 0
+    assert len(text) <= 100
