@@ -136,6 +136,19 @@ uv run pytest                        # 单元测试 + 端到端测试
 }
 ```
 
+macOS / Linux 上 `command` 换成 `.venv/bin/python` 的绝对路径（Linux 把 `/Users/<你>` 换成 `/home/<你>`）：
+
+```json
+{
+  "mcpServers": {
+    "notes": {
+      "command": "/Users/<你>/projects/notes-mcp/.venv/bin/python",
+      "args": ["-m", "notes_mcp", "--root", "/Users/<你>/Notes"]
+    }
+  }
+}
+```
+
 三个必须注意的点：
 
 - Windows 路径在 JSON 里要用**双反斜杠**，否则 `\U`、`\n` 会被当转义序列；
@@ -153,6 +166,19 @@ uv run pytest                        # 单元测试 + 端到端测试
     "notes": {
       "command": "C:\\Users\\<你>\\projects\\notes-mcp\\.venv\\Scripts\\python.exe",
       "args": ["-m", "notes_mcp", "--root", "D:\\Notes"]
+    }
+  }
+}
+```
+
+macOS / Linux 上 `command` 同样换成 `.venv/bin/python` 的绝对路径（Linux 把 `/Users/<你>` 换成 `/home/<你>`）：
+
+```json
+{
+  "mcpServers": {
+    "notes": {
+      "command": "/Users/<你>/projects/notes-mcp/.venv/bin/python",
+      "args": ["-m", "notes_mcp", "--root", "/Users/<你>/Notes"]
     }
   }
 }

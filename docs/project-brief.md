@@ -50,7 +50,7 @@
 - [x] **S6** Streamable HTTP 传输（含有状态 / 无状态两种模式实测）
 - [x] 120 个 pytest 用例（含 8 个端到端：真起子进程走 stdio）
 - [x] `scripts/verify.py`：22 项检查，含 **stdout 纯净度**（每行必须是合法 JSON-RPC）
-- [x] 6 篇示例笔记 + 可复现的 mtime 脚本
+- [x] 9 篇示例笔记 + 可复现的 mtime 脚本
 
 ---
 

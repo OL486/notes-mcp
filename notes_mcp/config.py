@@ -6,9 +6,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+LOG = logging.getLogger("notes_mcp")
 
 ENV_ROOT = "NOTES_MCP_ROOT"
 ENV_MAX_NOTE_CHARS = "NOTES_MCP_MAX_NOTE_CHARS"
@@ -114,7 +117,11 @@ def load_settings(
 
 
 def _env_int(env_name: str, explicit: int | None, default: int) -> int:
-    """环境变量解析失败时退回默认值，而不是让 server 起不来。"""
+    """环境变量解析失败时退回默认值，并记一行 warning，而不是让 server 起不来。
+
+    退回是静默的就等于纵容配错：`NOTES_MCP_SEARCH_BUDGET=abc` 写错了，
+    不吭声就会永远用默认值跑，用户永远不知道自己配错了。
+    """
     if explicit is not None:
         return explicit
     raw = os.environ.get(env_name)
@@ -123,5 +130,9 @@ def _env_int(env_name: str, explicit: int | None, default: int) -> int:
     try:
         value = int(raw)
     except ValueError:
+        LOG.warning("环境变量 %s 解析失败：%r 不是整数，改用默认值 %d", env_name, raw, default)
         return default
-    return value if value > 0 else default
+    if value <= 0:
+        LOG.warning("环境变量 %s 的值 %d 必须为正整数，改用默认值 %d", env_name, value, default)
+        return default
+    return value

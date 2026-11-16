@@ -9,6 +9,9 @@
 
 from __future__ import annotations
 
+import logging
+import time
+
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
 
@@ -19,6 +22,8 @@ from .config import Settings
 from .resources import INDEX_URI, NOTE_URI_TEMPLATE, build_index, read_note_resource
 from .safety import PathRejected
 from .tools import QueryRejected
+
+LOG = logging.getLogger("notes_mcp")
 
 SERVER_NAME = "notes-mcp"
 
@@ -68,6 +73,16 @@ def create_server(settings: Settings) -> MCPServer:
 # --------------------------------------------------------------------------- #
 
 
+def _log_tool_call(name: str, started: float, text: str, truncated: bool) -> None:
+    """工具调用完成时记一行 DEBUG：耗时、返回字符数、是否截断。
+
+    只在成功路径记：失败时调用方已经收到 ToolError，耗时没有单独记的价值；
+    默认级别 WARNING 下这行不出现，想看就用 --log-level DEBUG。
+    """
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    LOG.debug("%s 完成：%.1fms，返回 %d 字符，truncated=%s", name, elapsed_ms, len(text), truncated)
+
+
 def _register_tools(server: MCPServer, settings: Settings) -> None:
     """四个工具。
 
@@ -88,8 +103,9 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
     )
     def search_notes(query: str, limit: int = 5) -> str:
         """query: 关键词（中英文子串匹配，大小写不敏感）；limit: 最多返回几篇笔记的片段。"""
+        started = time.perf_counter()
         try:
-            return tool_impl.run_search(settings, query, limit).text
+            outcome = tool_impl.run_search(settings, query, limit)
         except (QueryRejected, ValueError, OSError) as exc:
             # 参数错误是"可预期的失败"，用 ToolError 让客户端收到 isError=true +
             # 可读文本，模型能据此改写参数重试；抛裸异常只会得到一句
@@ -97,6 +113,8 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
             # QueryRejected 是 ValueError 的子类；OSError 兜底读盘失败
             # （例如扫描中途目录被删），同样不该漏成堆栈。
             raise ToolError(str(exc)) from exc
+        _log_tool_call("search_notes", started, outcome.text, outcome.truncated)
+        return outcome.text
 
     @server.tool(
         name="read_note",
@@ -109,8 +127,9 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
     )
     def read_note(path: str) -> str:
         """path: 相对笔记根目录的 Markdown 路径。"""
+        started = time.perf_counter()
         try:
-            return tool_impl.run_read_note(settings, path).text
+            outcome = tool_impl.run_read_note(settings, path)
         except PathRejected as exc:
             raise ToolError(str(exc)) from exc
         except OSError as exc:
@@ -119,6 +138,8 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
             raise ToolError(
                 f"笔记读取失败：{path}。文件可能已被删除或移动，请重新读取索引。"
             ) from exc
+        _log_tool_call("read_note", started, outcome.text, outcome.truncated)
+        return outcome.text
 
     @server.tool(
         name="list_recent",
@@ -130,10 +151,13 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
     )
     def list_recent(days: int = 7) -> str:
         """days: 回溯天数，1-3650，默认 7。"""
+        started = time.perf_counter()
         try:
-            return tool_impl.run_list_recent(settings, days).text
+            outcome = tool_impl.run_list_recent(settings, days)
         except (ValueError, OSError) as exc:
             raise ToolError(str(exc)) from exc
+        _log_tool_call("list_recent", started, outcome.text, outcome.truncated)
+        return outcome.text
 
     @server.tool(
         name="notes_stats",
@@ -144,10 +168,14 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
         structured_output=False,
     )
     def notes_stats() -> str:
+        started = time.perf_counter()
         try:
-            return tool_impl.run_stats(settings)
+            text = tool_impl.run_stats(settings)
         except (ValueError, OSError) as exc:
             raise ToolError(str(exc)) from exc
+        # run_stats 只返回 str：截断与否从它统一追加的 "[已截断" 提示判断。
+        _log_tool_call("notes_stats", started, text, "[已截断" in text)
+        return text
 
 
 # --------------------------------------------------------------------------- #

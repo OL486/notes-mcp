@@ -6,9 +6,10 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
-from pytest import MonkeyPatch
+from pytest import LogCaptureFixture, MonkeyPatch
 
 from notes_mcp.config import (
     ENV_MAX_NOTE_CHARS,
@@ -128,6 +129,39 @@ def test_all_fields_exposed_via_env_vars(monkeypatch: MonkeyPatch, tmp_path: Pat
     assert settings.context_lines == 1
     assert settings.max_fragment_lines == 5
     assert settings.max_limit == 10
+
+
+def test_invalid_env_value_warns(
+    monkeypatch: MonkeyPatch, tmp_path: Path, caplog: LogCaptureFixture
+) -> None:
+    """P2-4：环境变量解析失败退回默认值时记一行 warning，而不是静默。"""
+    monkeypatch.setenv(ENV_MAX_NOTE_CHARS, "not-a-number")
+    with caplog.at_level(logging.WARNING, logger="notes_mcp"):
+        settings = load_settings(tmp_path)
+    assert settings.max_note_chars == 20_000
+    assert any(ENV_MAX_NOTE_CHARS in record.message for record in caplog.records)
+
+
+def test_non_positive_env_value_warns(
+    monkeypatch: MonkeyPatch, tmp_path: Path, caplog: LogCaptureFixture
+) -> None:
+    """P2-4：环境变量是 0 或负数时同样记 warning 再退回默认值。"""
+    monkeypatch.setenv(ENV_SEARCH_BUDGET, "0")
+    with caplog.at_level(logging.WARNING, logger="notes_mcp"):
+        settings = load_settings(tmp_path)
+    assert settings.search_budget == 8_000
+    assert any(ENV_SEARCH_BUDGET in record.message for record in caplog.records)
+
+
+def test_valid_env_value_does_not_warn(
+    monkeypatch: MonkeyPatch, tmp_path: Path, caplog: LogCaptureFixture
+) -> None:
+    """P2-4：合法的环境变量值不该产生 warning。"""
+    monkeypatch.setenv(ENV_MAX_NOTE_CHARS, "1000")
+    with caplog.at_level(logging.WARNING, logger="notes_mcp"):
+        settings = load_settings(tmp_path)
+    assert settings.max_note_chars == 1000
+    assert not any(ENV_MAX_NOTE_CHARS in record.message for record in caplog.records)
 
 
 def test_non_positive_field_is_rejected(tmp_path: Path) -> None:

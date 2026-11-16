@@ -677,11 +677,13 @@ Resource 名义上"由客户端决定何时读取"，但不少客户端会把资
 ```
 [prompts/get] weekly-review
 [1] tools/call list_recent  {"days": 7}
-    -> 最近 7 天内修改的笔记：4 篇（全部 6 篇）
-       - daily/2026-10-26.md   2026-10-26 16:18  ·  2026-10-26 日志
-       - daily/2026-10-25.md   2026-10-25 16:18  ·  2026-10-25 日志
-       - inbox/2026-10-24-mcp-day1.md  2026-10-24 16:18  ·  MCP 协议学习笔记（第一天）
-       - projects/notes-mcp-design.md  2026-10-23 18:18  ·  notes-mcp 设计草案
+    -> 最近 7 天内修改的笔记：6 篇（全部 9 篇）
+       - daily/2026-10-26.md   2026-11-16 12:33  ·  2026-10-26 日志
+       - daily/2026-10-27-frontmatter.md   2026-11-16 09:33  ·  十月最后一周复盘
+       - daily/2026-10-25.md   2026-11-15 12:33  ·  2026-10-25 日志
+       - projects/code-tag-note.md   2026-11-15 08:33  ·  正则表达式备忘
+       - inbox/2026-10-24-mcp-day1.md  2026-11-14 12:33  ·  MCP 协议学习笔记（第一天）
+       - projects/notes-mcp-design.md  2026-11-13 14:33  ·  notes-mcp 设计草案
 [2] tools/call search_notes  {"query": "MCP", "limit": 8}
     -> 命中 6 篇，返回 1623 字符的片段（不是全文）
 [3] tools/call read_note  {"path": "daily/2026-10-26.md"}

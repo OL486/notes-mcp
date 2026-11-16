@@ -14,6 +14,7 @@ from __future__ import annotations
 # `import notes_mcp.services.read_note as x` 会拿到函数而不是模块；
 # 用 import_module 拿 sys.modules 里的真正模块对象。
 import importlib
+import logging
 from collections.abc import Iterable
 from pathlib import Path
 from typing import NoReturn
@@ -29,7 +30,7 @@ from mcp.types import (
     InputRequiredResult,
     TextContent,
 )
-from pytest import MonkeyPatch
+from pytest import LogCaptureFixture, MonkeyPatch
 
 from notes_mcp.config import Settings
 from notes_mcp.notes.models import Note
@@ -118,6 +119,25 @@ def test_call_tool_success(settings: Settings) -> None:
 
         result = await server.call_tool("notes_stats", {})
         assert "笔记总数" in _tool_text(result)
+
+    anyio.run(scenario)
+
+
+def test_tool_calls_emit_debug_log(settings: Settings, caplog: LogCaptureFixture) -> None:
+    """P2-4：每次工具调用记一行 DEBUG（工具名 + 耗时 + 返回字符数 + 截断与否）。"""
+    async def scenario() -> None:
+        server = _server(settings)
+        with caplog.at_level(logging.DEBUG, logger="notes_mcp"):
+            await server.call_tool("search_notes", {"query": "MCP", "limit": 3})
+            await server.call_tool("read_note", {"path": "daily/2026-10-25.md"})
+            await server.call_tool("list_recent", {"days": 7})
+            await server.call_tool("notes_stats", {})
+        messages = [r.message for r in caplog.records if r.name == "notes_mcp"]
+        for name in ("search_notes", "read_note", "list_recent", "notes_stats"):
+            assert any(
+                name in m and "ms" in m and "字符" in m and "truncated=" in m
+                for m in messages
+            ), messages
 
     anyio.run(scenario)
 

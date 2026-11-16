@@ -266,3 +266,82 @@ def test_make_store_rejects_missing_root(tmp_path: Path) -> None:
     """N6：根目录不存在时 make_store 直接报错，而不是静默返回空库。"""
     with pytest.raises(FileNotFoundError, match="根目录不存在"):
         make_store(Settings(root=tmp_path / "no-such-dir"))
+
+
+def test_compat_store_module_reexports_with_deprecation_warning() -> None:
+    """P2-1：兼容层 import 时发 DeprecationWarning，re-export 与新位置一致。
+
+    0.2.0 删除它时，这个测试要跟着删；删除前，它锁住 re-export 列表
+    （列表错了、warning 没发，都会在这里炸掉）。
+    """
+    import importlib
+    import sys
+
+    from notes_mcp.notes import make_store as new_make_store
+
+    with pytest.warns(DeprecationWarning, match="已废弃"):
+        if "notes_mcp.store" in sys.modules:
+            importlib.reload(sys.modules["notes_mcp.store"])
+        else:
+            import notes_mcp.store  # noqa: F401 — 这里就是要触发它发 warning
+    import notes_mcp.store as compat
+    assert compat.make_store is new_make_store
+    assert compat.FilesystemNoteStore is not None
+    assert set(compat.__all__) == {
+        "ALLOWED_SUFFIXES",
+        "SKIP_DIRS",
+        "TAG_RE",
+        "FilesystemNoteStore",
+        "Fragment",
+        "Note",
+        "NoteHit",
+        "NoteStore",
+        "count_units",
+        "decode_bytes",
+        "extract_tags",
+        "extract_title",
+        "iter_note_files",
+        "make_store",
+        "render_hit",
+        "search_notes",
+    }
+
+
+def _sample_notes_root() -> Path:
+    return Path(__file__).resolve().parent.parent / "sample_notes"
+
+
+def test_sample_frontmatter_note() -> None:
+    """P2-2：带 frontmatter 的样本能被正常索引：标题取正文标题，标签合并。"""
+    store = FilesystemNoteStore(_sample_notes_root())
+    note = store.load_note(_sample_notes_root() / "daily" / "2026-10-27-frontmatter.md")
+    assert note.title == "十月最后一周复盘"
+    assert note.tags == ("周报", "复盘", "手账")
+
+
+def test_sample_code_block_tags_are_not_tags() -> None:
+    """P2-2：代码块里的 `#注释` 与行内代码里的 `#tag` 不能进标签。"""
+    store = FilesystemNoteStore(_sample_notes_root())
+    note = store.load_note(_sample_notes_root() / "projects" / "code-tag-note.md")
+    assert note.title == "正则表达式备忘"
+    assert note.tags == ("python", "regex")
+
+
+def test_sample_long_note_triggers_truncation() -> None:
+    """P2-2：长样本（> 20,000 字符）读出来应当触发截断提示。"""
+    from notes_mcp.tools import run_read_note
+
+    settings = Settings(root=_sample_notes_root())
+    outcome = run_read_note(settings, "reading/long-form-notes.md")
+    assert outcome.total_chars > 20_000
+    assert outcome.truncated is True
+    assert "[已截断" in outcome.text
+
+
+def test_sample_notes_are_searchable() -> None:
+    """P2-2：新样本进索引后能被搜到（frontmatter 标签与长文正文都能命中）。"""
+    from notes_mcp.tools import run_search
+
+    settings = Settings(root=_sample_notes_root())
+    assert run_search(settings, "复盘", limit=5).notes_matched >= 1
+    assert run_search(settings, "设计模式", limit=5).notes_matched >= 1
