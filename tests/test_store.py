@@ -90,6 +90,19 @@ def test_tags_from_frontmatter_block_list() -> None:
     assert extract_tags(text) == ("a/b", "mcp", "设计")
 
 
+def test_frontmatter_nested_keys_are_not_top_level() -> None:
+    """P1-4：`meta:` 下缩进的 `title:` / `tags:` 是嵌套键，不能当顶层键。"""
+    text = "---\nmeta:\n  title: 嵌套标题\n  tags:\n    - 内层标签\n---\n\n正文\n"
+    assert extract_title(text, "fallback") == "正文"
+    assert extract_tags(text) == ()
+
+
+def test_frontmatter_block_list_ignores_deeper_indent() -> None:
+    """P1-4：块列表里更深缩进的 `- item` 属于嵌套键，不计入顶层 `tags:`。"""
+    text = "---\ntags:\n  - a\n  other:\n    - b\n---\n\n正文\n"
+    assert extract_tags(text) == ("a",)
+
+
 def test_frontmatter_hash_lines_are_not_tags() -> None:
     """frontmatter 块里的 `#`（标题值、注释行）不算标签。"""
     text = '---\ntitle: "#notatag"\n# 这行是注释\ntags: [mcp]\n---\n\n正文 #real\n'

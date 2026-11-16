@@ -116,6 +116,8 @@ def _split_frontmatter(text: str) -> _Frontmatter:
     结束行（`---` 或 `...`）；没有结束行就不是 frontmatter，整篇按正文处理。
     块里只做行级键值提取：`title:` 与 `tags:`（`[a, b]` 列表与 `- a` 块列表
     两种写法），不做完整 YAML 解析，保持零依赖。
+    只认顶层键：行首有缩进的 `title:` / `tags:`（例如 `meta:` 下面的嵌套键）
+    不认；`- a` 块列表只认首个列表项的缩进，更深缩进的项属于嵌套键。
     """
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
@@ -131,15 +133,15 @@ def _split_frontmatter(text: str) -> _Frontmatter:
     tags: set[str] = set()
     i = 1
     while i < end:
-        stripped = lines[i].strip()
-        if stripped.startswith("title:"):
+        raw = lines[i]
+        if raw.startswith("title:"):
             if title is None:
-                value = _clean_fm_scalar(stripped.removeprefix("title:"))
+                value = _clean_fm_scalar(raw.removeprefix("title:"))
                 if value:
                     title = value
             i += 1
-        elif stripped.startswith("tags:"):
-            rest = stripped.removeprefix("tags:").strip()
+        elif raw.startswith("tags:"):
+            rest = raw.removeprefix("tags:").strip()
             if rest.startswith("[") and rest.endswith("]"):
                 for item in rest[1:-1].split(","):
                     tag = _fm_tag(item)
@@ -153,14 +155,22 @@ def _split_frontmatter(text: str) -> _Frontmatter:
                 i += 1
             else:
                 # `- a` 块列表：连续的 `- item` 行，空行跳过，别的行结束。
+                # 只认首个列表项的缩进：更深缩进的 `- item` 属于嵌套键，
+                # 不是这个 `tags:` 的值。
                 i += 1
+                item_indent: int | None = None
                 while i < end:
-                    item_line = lines[i].strip()
-                    if not item_line:
+                    item_line = lines[i]
+                    if not item_line.strip():
                         i += 1
                         continue
-                    if item_line.startswith("- "):
-                        tag = _fm_tag(item_line[2:])
+                    indent = len(item_line) - len(item_line.lstrip())
+                    if item_line.lstrip().startswith("- "):
+                        if item_indent is None:
+                            item_indent = indent
+                        elif indent != item_indent:
+                            break
+                        tag = _fm_tag(item_line.lstrip()[2:])
                         if tag is not None:
                             tags.add(tag)
                         i += 1
