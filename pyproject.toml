@@ -37,6 +37,9 @@ packages = ["notes_mcp"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "slow: 性能冒烟测试，耗时较长（默认跑，可用 -m 'not slow' 跳过）",
+]
 
 [tool.ruff]
 line-length = 100
