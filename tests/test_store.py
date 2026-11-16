@@ -231,6 +231,101 @@ def test_scan_keeps_symlink_inside_root(notes_root: Path) -> None:
     assert "alias.md" in rels
 
 
+def test_scan_follows_symlink_dir_inside_root(notes_root: Path) -> None:
+    """P1-7 方向 A：根内目录链接指向根内目录时，里面的笔记要被扫到，
+    且只出现一次（链接与真实目录指向同一目标时去重，不双倍计数）。"""
+    real = notes_root / "shared"
+    real.mkdir()
+    (real / "shared-note.md").write_text("# 共享笔记\n\n内容\n", encoding="utf-8")
+    link = notes_root / "linked"
+    try:
+        os.symlink(real, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+
+    rels = {p.relative_to(notes_root).as_posix() for p in iter_note_files(notes_root)}
+    # 字典序先到的路径为准：linked < shared，所以笔记挂在链接名下。
+    assert "linked/shared-note.md" in rels
+    assert "shared/shared-note.md" not in rels
+    assert sum(1 for r in rels if r.endswith("shared-note.md")) == 1
+
+    notes = FilesystemNoteStore(notes_root).load_all()
+    matched = [n for n in notes if n.rel == "linked/shared-note.md"]
+    assert len(matched) == 1
+    assert matched[0].title == "共享笔记"
+
+    # 经链接目录直接读单篇也正常（resolve 后仍在根内）。
+    assert FilesystemNoteStore(notes_root).load_note(link / "shared-note.md").title == "共享笔记"
+
+
+def test_scan_skips_symlink_dir_pointing_outside_root(
+    notes_root: Path, tmp_path: Path
+) -> None:
+    """P1-7 方向 A：目录链接指向根外时，里面的笔记不被扫到、也不报错，
+    直接读同样被拒绝（与文件链接同规则）。"""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.md").write_text("# secret\n不该被读到\n", encoding="utf-8")
+    link = notes_root / "external"
+    try:
+        os.symlink(outside, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+
+    rels = {p.relative_to(notes_root).as_posix() for p in iter_note_files(notes_root)}
+    assert "external/secret.md" not in rels
+
+    notes = FilesystemNoteStore(notes_root).load_all()
+    assert all("不该被读到" not in note.text for note in notes)
+
+    with pytest.raises(PathRejected):
+        FilesystemNoteStore(notes_root).load_note(link / "secret.md")
+
+
+def test_scan_symlink_dir_cycle_does_not_loop(notes_root: Path) -> None:
+    """P1-7 方向 A：循环链接（A→B→A）与指回根自身的链接不能让扫描
+    无限递归；两个目录里的真实笔记各出现一次。"""
+    a = notes_root / "a"
+    b = notes_root / "b"
+    a.mkdir()
+    b.mkdir()
+    (a / "x.md").write_text("# X\n", encoding="utf-8")
+    (b / "y.md").write_text("# Y\n", encoding="utf-8")
+    try:
+        os.symlink(b, a / "loop")
+        os.symlink(a, b / "loop")
+        os.symlink(notes_root, a / "back")
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+
+    # 能返回就是通过：循环时扫描会一直递归下去，永远到不了这里。
+    rels = {p.relative_to(notes_root).as_posix() for p in iter_note_files(notes_root)}
+    assert "a/x.md" in rels
+    assert "b/y.md" in rels
+    assert sum(1 for r in rels if r.endswith(("x.md", "y.md"))) == 2
+    assert not any("/loop/" in r or r.startswith("loop/") for r in rels)
+
+    # fixture 自带 3 篇 + 新增 2 篇，不多不少。
+    assert len(FilesystemNoteStore(notes_root).load_all()) == 5
+
+
+def test_scan_two_links_to_same_dir_dedupes(notes_root: Path) -> None:
+    """P1-7 方向 A：两个链接指向同一目录时，同一篇笔记只出现一次
+    （字典序先到的链接名下），不双倍计入统计。"""
+    real = notes_root / "vault"
+    real.mkdir()
+    (real / "n.md").write_text("# N\n", encoding="utf-8")
+    try:
+        os.symlink(real, notes_root / "alpha")
+        os.symlink(real, notes_root / "beta")
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+
+    rels = {p.relative_to(notes_root).as_posix() for p in iter_note_files(notes_root)}
+    assert sum(1 for r in rels if r.endswith("/n.md")) == 1
+    assert "alpha/n.md" in rels
+
+
 def test_load_note_rejects_symlink_outside_root(notes_root: Path, tmp_path: Path) -> None:
     """load_note 的二次校验：直接调用也不允许读根外文件。"""
     link = notes_root / "linkfile.md"
