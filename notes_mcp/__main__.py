@@ -33,15 +33,27 @@ def _configure_stderr_logging(level: str) -> None:
         with contextlib.suppress(ValueError, OSError):
             reconfigure(encoding="utf-8", errors="replace")
 
+    # 非法值不要静默退回 WARNING：`--log-level VERBOSE` 打错了，
+    # 不吭声就会永远以 WARNING 跑，用户永远不知道自己打错了。
+    # 先算好级别、配好 handler 再记 warning，否则 warning 会走
+    # logging 的 lastResort handler，格式与后面的日志不一致。
+    level_name = level.upper()
+    numeric = getattr(logging, level_name, None)
+    invalid = not isinstance(numeric, int)
+    if invalid:
+        numeric = logging.WARNING
+
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
     )
     logging.basicConfig(
-        level=getattr(logging, level.upper(), logging.WARNING),
+        level=numeric,
         handlers=[handler],
         force=True,
     )
+    if invalid:
+        LOG.warning("--log-level 的值 %r 不是合法日志级别，改用 WARNING", level)
 
 
 def _port(value: str) -> int:

@@ -157,7 +157,13 @@ def test_http_lists_tools_and_searches(notes_root: Path, tmp_path: Path) -> None
             assert client.protocol_version == MODERN
 
             tools = sorted(t.name for t in (await client.list_tools()).tools)
-            assert tools == ["list_recent", "notes_stats", "read_note", "search_notes"]
+            assert tools == [
+                "list_notes",
+                "list_recent",
+                "notes_stats",
+                "read_note",
+                "search_notes",
+            ]
 
             result = await client.call_tool("search_notes", {"query": "MCP"})
             assert not result.is_error

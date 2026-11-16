@@ -16,9 +16,12 @@ ROOT = Path(__file__).resolve().parent.parent / "sample_notes"
 OFFSETS_HOURS = {
     "daily/2026-10-26.md": 2,
     "daily/2026-10-25.md": 26,
+    "daily/2026-10-27-frontmatter.md": 5,
     "inbox/2026-10-24-mcp-day1.md": 50,
     "projects/notes-mcp-design.md": 72,
+    "projects/code-tag-note.md": 30,
     "reading/ddia-ch3.md": 40 * 24,
+    "reading/long-form-notes.md": 10 * 24,
     "inbox/old-idea-kb-cli.md": 100 * 24,
 }
 

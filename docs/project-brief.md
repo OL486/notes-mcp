@@ -50,7 +50,7 @@
 - [x] **S6** Streamable HTTP 传输（含有状态 / 无状态两种模式实测）
 - [x] 120 个 pytest 用例（含 8 个端到端：真起子进程走 stdio）
 - [x] `scripts/verify.py`：22 项检查，含 **stdout 纯净度**（每行必须是合法 JSON-RPC）
-- [x] 6 篇示例笔记 + 可复现的 mtime 脚本
+- [x] 9 篇示例笔记 + 可复现的 mtime 脚本
 
 ---
 
@@ -58,7 +58,7 @@
 
 | 阶段 | 验收命令 | 通过标准 |
 |---|---|---|
-| S0 | `npx @modelcontextprotocol/inspector@2.12.0 --cli --protocol-era modern uv run notes-mcp --root ./sample_notes --method tools/list` | 列出 4 个工具；stdout 无任何非协议输出 |
+| S0 | `npx @modelcontextprotocol/inspector@2.12.0 --cli --protocol-era modern uv run notes-mcp --root ./sample_notes --method tools/list` | 列出 5 个工具；stdout 无任何非协议输出 |
 | S1 | `uv run pytest tests/test_search.py -v` | 返回片段（带行号）而非全文；每篇 ≤3 段；总长 ≤8000 |
 | S2 | `uv run pytest tests/test_safety.py -v` | `../../etc/passwd`、`/etc/passwd`、软链接逃逸全部拒绝，且返回可读说明 |
 | S3 | `uv run pytest tests/test_resources.py -v` | index 是合法 JSON 且 `count` 正确；单篇 URI 可读；越界 URI 被拒 |

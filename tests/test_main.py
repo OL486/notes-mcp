@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import errno
+import logging
 from pathlib import Path
 
 import pytest
@@ -81,6 +82,27 @@ def test_streamable_http_passes_host_port_and_stateless(
     assert calls == [
         ("streamable-http", {"host": "127.0.0.1", "port": 8123, "stateless_http": True})
     ]
+
+
+def test_invalid_log_level_warns_and_falls_back(
+    notes_root: Path, monkeypatch: MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """P2-4：--log-level 非法值记一行 warning 并退回 WARNING，而不是静默。"""
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class FakeServer:
+        def run(self, transport: str, **kwargs: object) -> None:
+            calls.append((transport, kwargs))
+
+    monkeypatch.setattr(
+        "notes_mcp.__main__.create_server", lambda settings: FakeServer()
+    )
+    assert main(["--root", str(notes_root), "--log-level", "VERBOSE"]) == 0
+    assert calls == [("stdio", {})]
+    err = capsys.readouterr().err
+    assert "VERBOSE" in err
+    assert "WARNING" in err
+    assert logging.getLogger("notes_mcp").getEffectiveLevel() == logging.WARNING
 
 
 def test_root_from_env_is_used(notes_root: Path, monkeypatch: MonkeyPatch) -> None:
