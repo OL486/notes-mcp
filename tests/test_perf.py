@@ -4,14 +4,15 @@ round-3/4 的性能数字只存在于分析报告里；一次"顺手"重构（�
 light 加载、改回全量解析）就能让 search 悄悄慢 3 倍，而 CI 全绿。
 这个文件是自动化护栏，不是 benchmark：
 
-- 阈值只抓"量级退化"，不抓毫秒级波动。本机实测（main f2fffab，
+- 阈值只抓"量级退化"，不抓毫秒级波动。本机实测（main 5ac642a，
   共享 VM，3 遍中位）：search ~360ms、list_recent ~260ms、
-  build_index 大预算 ~4.3s。2s 对 search / list_recent 留了约
+  build_index 大预算 ~1.6s。2s 对 search / list_recent 留了约
   5–7 倍余量，CI 机器波动不会误报。
-- build_index 大预算的 8s 是过渡值：当前 main 的 build_index
-  仍是 O(n²)（round-4 的增量记账在未合的 PR #10 里，合后实测
-  ~716ms），所以 2s 在 main 上今天就跑不过；8s 只防"比现在
-  再慢一个量级"。PR #10 合并后应把这里收紧到 2s。
+- build_index 大预算的阈值是 3s：PR #10 合并后实测 ~1.6s
+  （6 次 1.51–1.81s，本机），比 round-4 报告的 716ms 高——那是
+  另一套测量口径。2s 只剩约 1.2 倍余量，CI 稍慢就会误报；3s
+  留约 1.9 倍余量，同时仍能抓住旧 O(n²) 行为（~4.3s 会超标）。
+  8s 是 #10 合并前的过渡值，已随 #10 合并而作废。
 - 不要断言精确毫秒数，不要引入 pytest-benchmark，也不要在 CI 里做
   精确计时对比——波动太大，收益不成正比。
 - 标记 @pytest.mark.slow 只是为了能用 `-m "not slow"` 跳过，
@@ -32,8 +33,8 @@ from notes_mcp.tools import run_list_recent, run_search
 
 # 冒烟阈值（秒）：只防量级退化。见模块 docstring 的余量说明。
 PERF_BUDGET_SECONDS = 2.0
-# build_index 大预算的过渡阈值：见模块 docstring，PR #10 合并后收紧到 2s。
-BIG_INDEX_BUDGET_SECONDS = 8.0
+# build_index 大预算的阈值：见模块 docstring（#10 合并后从 8s 收紧到 3s）。
+BIG_INDEX_BUDGET_SECONDS = 3.0
 
 # 合成库规模：与 round-3/4 分析口径一致（1000 篇、每篇约 4.5KB）。
 NOTES = 1000
@@ -95,12 +96,12 @@ def test_list_recent_under_budget(perf_settings: Settings) -> None:
 
 @pytest.mark.slow
 def test_build_index_big_budget_under_budget(perf_settings: Settings) -> None:
-    """build_index 在大预算下单次调用 < 8s（实测 ~4.3s，见模块 docstring）。
+    """build_index 在大预算下单次调用 < 3s（实测 ~1.6s，见模块 docstring）。
 
     默认预算会把 1000 篇截断到几十条，测不出全量渲染的成本，
     所以这里用 10_000_000 预算让全部条目都进入输出——
     这正是 round-4 修掉 O(n²) 的那个场景（PR #10 未合前 4,604ms，
-    合后 716ms）。阈值 8s 是过渡值，PR #10 合并后收紧到 2s。
+    合后本机实测 ~1.6s）。阈值 3s 仍能抓住旧行为（~4.3s 会超标）。
     """
     big_budget = Settings(root=perf_settings.root, index_budget=10_000_000)
 
