@@ -15,6 +15,7 @@ ENV_MAX_NOTE_CHARS = "NOTES_MCP_MAX_NOTE_CHARS"
 ENV_SEARCH_BUDGET = "NOTES_MCP_SEARCH_BUDGET"
 ENV_INDEX_BUDGET = "NOTES_MCP_INDEX_BUDGET"
 ENV_RECENT_BUDGET = "NOTES_MCP_RECENT_BUDGET"
+ENV_LIST_BUDGET = "NOTES_MCP_LIST_BUDGET"
 ENV_STATS_BUDGET = "NOTES_MCP_STATS_BUDGET"
 ENV_FRAGMENTS_PER_NOTE = "NOTES_MCP_FRAGMENTS_PER_NOTE"
 ENV_CONTEXT_LINES = "NOTES_MCP_CONTEXT_LINES"
@@ -41,6 +42,9 @@ class Settings:
 
     recent_budget: int = 4_000
     """list_recent 的返回预算。"""
+
+    list_budget: int = 4_000
+    """list_notes 的返回预算。"""
 
     stats_budget: int = 3_000
     """notes_stats 的返回预算。"""
@@ -73,6 +77,7 @@ class Settings:
             "search_budget",
             "index_budget",
             "recent_budget",
+            "list_budget",
             "stats_budget",
             "fragments_per_note",
             "context_lines",
@@ -91,6 +96,7 @@ def load_settings(
     search_budget: int | None = None,
     index_budget: int | None = None,
     recent_budget: int | None = None,
+    list_budget: int | None = None,
     stats_budget: int | None = None,
     fragments_per_note: int | None = None,
     context_lines: int | None = None,
@@ -112,6 +118,7 @@ def load_settings(
         search_budget=_env_int(ENV_SEARCH_BUDGET, search_budget, 8_000),
         index_budget=_env_int(ENV_INDEX_BUDGET, index_budget, 8_000),
         recent_budget=_env_int(ENV_RECENT_BUDGET, recent_budget, 4_000),
+        list_budget=_env_int(ENV_LIST_BUDGET, list_budget, 4_000),
         stats_budget=_env_int(ENV_STATS_BUDGET, stats_budget, 3_000),
         fragments_per_note=_env_int(ENV_FRAGMENTS_PER_NOTE, fragments_per_note, 3),
         context_lines=_env_int(ENV_CONTEXT_LINES, context_lines, 2),

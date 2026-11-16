@@ -12,7 +12,13 @@ from pathlib import Path
 
 from notes_mcp.config import Settings
 from notes_mcp.resources import build_index, read_note_resource
-from notes_mcp.tools import run_list_recent, run_read_note, run_search, run_stats
+from notes_mcp.tools import (
+    run_list_notes,
+    run_list_recent,
+    run_read_note,
+    run_search,
+    run_stats,
+)
 
 
 def _make_library(root: Path, notes: int, lines_per_note: int, line_len: int) -> None:
@@ -48,6 +54,11 @@ def main() -> int:
         recent = run_list_recent(settings, days=3650)
         rows.append(
             ("list_recent(days=3650, 200 篇)", len(recent.text), f"预算 {settings.recent_budget}")
+        )
+
+        listed = run_list_notes(settings, offset=0, limit=20)
+        rows.append(
+            ("list_notes(offset=0, limit=20)", len(listed.text), f"预算 {settings.list_budget}")
         )
 
         stats = run_stats(settings)

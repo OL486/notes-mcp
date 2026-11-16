@@ -11,6 +11,7 @@ from pathlib import Path
 from pytest import MonkeyPatch
 
 from notes_mcp.config import (
+    ENV_LIST_BUDGET,
     ENV_MAX_NOTE_CHARS,
     ENV_ROOT,
     ENV_SEARCH_BUDGET,
@@ -25,6 +26,7 @@ def test_defaults(tmp_path: Path) -> None:
     assert settings.search_budget == 8_000
     assert settings.index_budget == 8_000
     assert settings.recent_budget == 4_000
+    assert settings.list_budget == 4_000
     assert settings.stats_budget == 3_000
     assert settings.fragments_per_note == 3
     assert settings.context_lines == 2
@@ -79,9 +81,11 @@ def test_direct_construction_resolves_root(
 def test_env_vars_are_used(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv(ENV_MAX_NOTE_CHARS, "1000")
     monkeypatch.setenv(ENV_SEARCH_BUDGET, "2000")
+    monkeypatch.setenv(ENV_LIST_BUDGET, "1500")
     settings = load_settings(tmp_path)
     assert settings.max_note_chars == 1000
     assert settings.search_budget == 2000
+    assert settings.list_budget == 1500
 
 
 def test_env_root_is_used(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:

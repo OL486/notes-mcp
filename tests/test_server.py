@@ -85,7 +85,13 @@ def test_registration_lists_all_primitives(settings: Settings) -> None:
     async def scenario() -> None:
         server = _server(settings)
         tools = sorted(t.name for t in await server.list_tools())
-        assert tools == ["list_recent", "notes_stats", "read_note", "search_notes"]
+        assert tools == [
+            "list_notes",
+            "list_recent",
+            "notes_stats",
+            "read_note",
+            "search_notes",
+        ]
 
         resources = [r.uri for r in await server.list_resources()]
         assert resources == ["notes://index"]
@@ -129,6 +135,9 @@ def test_call_tool_success(settings: Settings) -> None:
         result = await server.call_tool("list_recent", {"days": 7})
         assert "最近" in _tool_text(result)
 
+        result = await server.call_tool("list_notes", {"offset": 0, "limit": 2})
+        assert "daily/2026-10-25.md" in _tool_text(result)
+
         result = await server.call_tool("notes_stats", {})
         assert "笔记总数" in _tool_text(result)
 
@@ -160,6 +169,15 @@ def test_search_notes_rejects_empty_query(settings: Settings) -> None:
         server = _server(settings)
         with pytest.raises(ToolError, match="query 不能为空"):
             await server.call_tool("search_notes", {"query": "   "})
+
+    anyio.run(scenario)
+
+
+def test_list_notes_dir_rejected_becomes_tool_error(settings: Settings) -> None:
+    async def scenario() -> None:
+        server = _server(settings)
+        with pytest.raises(ToolError, match="路径穿越"):
+            await server.call_tool("list_notes", {"dir": "../secret"})
 
     anyio.run(scenario)
 

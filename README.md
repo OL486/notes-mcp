@@ -16,6 +16,7 @@
 | `search_notes` | `query: str`, `limit: int = 5` | 全文检索，返回命中行 ±2 行的**片段**（每篇最多 3 段），总预算 8000 字符 |
 | `read_note` | `path: str` | 读取单篇全文，超过 20000 字符截断并标注 |
 | `list_recent` | `days: int = 7` | 最近 N 天修改过的笔记（路径 + 时间 + 首行标题） |
+| `list_notes` | `offset: int = 0`, `limit: int = 20`, `dir: str = ""` | 按修改时间倒序翻页列出全部笔记，`notes://index` 被截断时用它拿剩余条目 |
 | `notes_stats` | — | 笔记总数、总字数、标签分布（解析 `#tag`） |
 
 **Resources（客户端/用户读取）**
@@ -77,7 +78,7 @@ npx @modelcontextprotocol/inspector@2.12.0 --cli \
   --method tools/list
 ```
 
-看到四个工具名即通过。`--protocol-era modern` 不能省——Inspector 的 CLI 在
+看到五个工具名即通过。`--protocol-era modern` 不能省——Inspector 的 CLI 在
 ad-hoc 目标下默认走 **legacy**（2025 握手），不加这个参数你测的是旧时代的行为。
 
 ### 本地完整自检
@@ -158,7 +159,7 @@ uv run pytest                        # 单元测试 + 端到端测试
 }
 ```
 
-在 Cursor 的 Settings → MCP 里确认 `notes` 显示为已连接、工具数为 4。
+在 Cursor 的 Settings → MCP 里确认 `notes` 显示为已连接、工具数为 5。
 
 ### 用 wheel 装好的命令
 
@@ -188,6 +189,7 @@ macOS / Linux 上 `command` 换成 `/Users/<你>/notes-venv/bin/notes-mcp`。
 | `NOTES_MCP_SEARCH_BUDGET` | `8000` | `search_notes` 总预算 |
 | `NOTES_MCP_INDEX_BUDGET` | `8000` | `notes://index` 的返回预算 |
 | `NOTES_MCP_RECENT_BUDGET` | `4000` | `list_recent` 的返回预算 |
+| `NOTES_MCP_LIST_BUDGET` | `4000` | `list_notes` 的返回预算 |
 | `NOTES_MCP_STATS_BUDGET` | `3000` | `notes_stats` 的返回预算 |
 | `NOTES_MCP_FRAGMENTS_PER_NOTE` | `3` | 每篇笔记最多返回几个片段 |
 | `NOTES_MCP_CONTEXT_LINES` | `2` | 每个命中行前后各带几行上下文 |

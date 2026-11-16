@@ -17,6 +17,7 @@ from .notes.scan import ALLOWED_SUFFIXES
 __all__ = [
     "ALLOWED_SUFFIXES",
     "PathRejected",
+    "resolve_note_dir",
     "resolve_note_path",
     "to_note_uri",
 ]
@@ -118,6 +119,57 @@ def resolve_note_path(
         )
 
     return target
+
+
+def resolve_note_dir(root: Path, raw: str) -> str:
+    """把模型给的相对目录解析成根目录内的目录前缀，否则抛 PathRejected。
+
+    list_notes 的 dir 参数是目录不是文件，所以不能复用 resolve_note_path
+    （它要求 .md 后缀与文件存在）；但字符串层的拒绝规则必须和它一致：
+    空串表示根目录；NUL、绝对路径、`..` 一律拒绝；符号链接展开后仍须在根内。
+
+    返回规范化后的相对目录（posix 风格，不含首尾斜杠）；根目录返回 ""。
+    """
+    if not isinstance(raw, str):
+        raise PathRejected(
+            "dir 必须是字符串",
+            "请传入相对笔记根目录的目录，例如 daily 或 projects/设计",
+        )
+    if "\x00" in raw:
+        raise PathRejected("dir 含 NUL 字节", "这是非法输入，请重新给出正常的相对路径")
+
+    normalized = raw.strip().replace("\\", "/")
+    if not normalized:
+        return ""
+
+    # 绝对路径必须在 strip("/") 之前判断：先去掉前导斜杠会把 "/etc" 洗成 "etc"。
+    if _looks_absolute(normalized):
+        raise PathRejected(
+            f"拒绝绝对路径：{raw}",
+            "只接受相对笔记根目录的目录，例如 daily",
+        )
+
+    normalized = normalized.strip("/")
+    if not normalized:
+        return ""
+
+    parts = [part for part in Path(normalized).parts if part != "."]
+    if ".." in parts:
+        raise PathRejected(
+            f"拒绝路径穿越：{raw}",
+            "路径中不允许出现 ..，请使用根目录内的相对路径",
+        )
+    normalized = "/".join(parts)
+    if not normalized:
+        return ""
+
+    target = (root / normalized).resolve(strict=False)
+    if not target.is_relative_to(root.resolve()):
+        raise PathRejected(
+            f"路径越界：{raw} 解析后落在笔记根目录之外",
+            "只允许笔记根目录内的相对目录",
+        )
+    return normalized
 
 
 def to_note_uri(rel_path: str) -> str:
