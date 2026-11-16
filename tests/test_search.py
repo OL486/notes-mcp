@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -93,3 +94,13 @@ def test_case_insensitive(settings: Settings) -> None:
     upper = run_search(settings, "MCP", limit=5)
     assert lower.notes_matched == upper.notes_matched
     assert lower.notes_matched > 0
+
+
+def test_non_string_query_rejected(settings: Settings) -> None:
+    """P2-8c：query 非 str 时直接调用会抛 AttributeError 漏成裸堆栈；
+    现在应是 QueryRejected（server 层会转成 ToolError）。
+    cast 是故意的：传错类型的输入测运行时守卫。"""
+    with pytest.raises(QueryRejected, match="必须是字符串"):
+        run_search(settings, cast("str", 123), limit=5)
+    with pytest.raises(QueryRejected, match="必须是字符串"):
+        run_search(settings, cast("str", None), limit=5)

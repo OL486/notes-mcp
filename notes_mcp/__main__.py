@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import errno
 import logging
 import sys
 
@@ -116,12 +117,24 @@ def main(argv: list[str] | None = None) -> int:
     if args.transport == "stdio":
         server.run("stdio")
     else:
-        server.run(
-            "streamable-http",
-            host=args.host,
-            port=args.port,
-            stateless_http=args.stateless_http,
-        )
+        try:
+            server.run(
+                "streamable-http",
+                host=args.host,
+                port=args.port,
+                stateless_http=args.stateless_http,
+            )
+        except OSError as exc:
+            if exc.errno != errno.EADDRINUSE:
+                # 不是端口占用（例如 host 非法）：别把别人的错认成端口问题。
+                raise
+            # 对照根目录不存在时的处理：stderr + 退出码，而不是甩原始 traceback。
+            print(
+                f"[notes-mcp] 端口 {args.port} 已被占用"
+                f"（{args.host}:{args.port}），请换一个 --port 再试。",
+                file=sys.stderr,
+            )
+            return 1
     return 0
 
 

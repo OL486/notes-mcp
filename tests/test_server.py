@@ -99,6 +99,19 @@ def test_registration_lists_all_primitives(settings: Settings) -> None:
     anyio.run(scenario)
 
 
+def test_notes_stats_description_mentions_frontmatter_tags(settings: Settings) -> None:
+    """P2-8b：#12 后 frontmatter 的 tags: 也计入标签分布，
+    notes_stats 的描述不能再说"只解析正文里的 #tag"。"""
+    async def scenario() -> None:
+        server = _server(settings)
+        tools = {t.name: t for t in await server.list_tools()}
+        description = tools["notes_stats"].description or ""
+        assert "frontmatter" in description
+        assert "tags:" in description
+
+    anyio.run(scenario)
+
+
 # --------------------------------------------------------------------------- #
 # 工具成功路径（进程内调用）
 # --------------------------------------------------------------------------- #

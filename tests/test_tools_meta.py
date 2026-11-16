@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from notes_mcp.config import Settings
+from notes_mcp.notes.store import MAX_NOTE_BYTES
 from notes_mcp.tools import run_list_recent, run_stats
 from notes_mcp.tools.common import _clamp
 
@@ -92,3 +93,16 @@ def test_stats_empty_root(tmp_path: Path) -> None:
     root.mkdir()
     text = run_stats(Settings(root=root.resolve()))
     assert "为空" in text
+
+
+def test_stats_reports_skipped_oversized(tmp_path: Path) -> None:
+    """P2-7a：stats 要报告被跳过的超大文件数，否则模型会以为"只有这些"。"""
+    root = tmp_path / "notes"
+    root.mkdir()
+    (root / "small.md").write_text("# 小\n\n正文\n", encoding="utf-8")
+    (root / "big.md").write_bytes(b"x" * (MAX_NOTE_BYTES + 1))
+
+    text = run_stats(Settings(root=root.resolve()))
+    assert "笔记总数：1 篇" in text
+    assert "超大文件已跳过：1 篇" in text
+    assert "10 MB" in text

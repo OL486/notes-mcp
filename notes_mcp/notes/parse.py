@@ -45,14 +45,22 @@ _UNIT_RE = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]|[A-Za-z0-9_]+"
 
 
 def decode_bytes(data: bytes) -> str:
-    """按 utf-16（BOM）→ utf-8 → gb18030 → 有损 utf-8 的顺序解码。
+    """按 utf-32（BOM）→ utf-16（BOM）→ utf-8 → gb18030 → 有损 utf-8 的顺序解码。
 
     中文 Windows 上老笔记常是 GBK/GB18030；直接用 Path.read_text() 会抛
     UnicodeDecodeError 让整个工具调用失败，为了一篇乱码笔记赔上整次检索不值得。
 
     UTF-16 必须先按 BOM 识别：gb18030 几乎什么字节都解得出，
     不先判 BOM 的话 UTF-16 文件会走 gb18030 兜底，解成一堆乱码还不报错。
+
+    UTF-32 更要先判：它的 LE BOM（FF FE 00 00）前两个字节与 UTF-16 LE 的
+    BOM 完全相同，不先判 4 字节就会按 UTF-16 解出带 NUL 的乱码还不报错。
     """
+    if data.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
+        try:
+            return data.decode("utf-32")
+        except UnicodeDecodeError:
+            pass
     if data.startswith((b"\xff\xfe", b"\xfe\xff")):
         try:
             return data.decode("utf-16")

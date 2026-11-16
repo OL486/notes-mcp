@@ -138,8 +138,8 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
     @server.tool(
         name="notes_stats",
         description=(
-            "返回笔记总数、总字数、标签分布（解析正文里的 #tag）和最近修改时间。"
-            "用于先摸清语料规模。"
+            "返回笔记总数、总字数、标签分布（正文里的 #tag 与 frontmatter 的 tags: 合并统计）"
+            "和最近修改时间。用于先摸清语料规模。"
         ),
         structured_output=False,
     )

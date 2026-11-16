@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from ..budget import clip_with_notice
 from ..config import Settings
+from ..errors import NoteTooLargeError
 from ..notes.store import make_store
 from ..safety import PathRejected, resolve_note_path
 
@@ -33,6 +34,13 @@ def read_note(settings: Settings, path: str, *, advice: str) -> ReadOutcome:
     target = resolve_note_path(settings.root, path)  # 越界/不存在/类型不符都会抛 PathRejected
     try:
         note = make_store(settings).load_note(target)
+    except NoteTooLargeError as exc:
+        # 超大文件不读进内存：给一句能行动的报错，而不是"文件可能被删"的误导。
+        raise PathRejected(
+            f"笔记过大无法读取：{path}（{exc.size:,} 字节，"
+            f"超过 {exc.limit:,} 字节上限）",
+            "请把文件拆小，或直接用编辑器打开。",
+        ) from exc
     except PathRejected:
         raise
     except OSError as exc:
