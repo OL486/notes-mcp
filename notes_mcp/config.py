@@ -60,7 +60,14 @@ class Settings:
 
     def __post_init__(self) -> None:
         """整数字段必须为正整数：0 或负数会让预算/检索逻辑失去意义，
-        与其在运行时出怪结果，不如在构造时就炸掉。"""
+        与其在运行时出怪结果，不如在构造时就炸掉。
+
+        root 在这里就 resolve：docstring 要求 root"已经 resolve 过"，
+        安全校验（safety.py 的 is_relative_to）直接依赖这一点。
+        只靠 load_settings resolve 不够——直接构造 Settings 的代码
+        （测试、未来调用方）传相对路径时，chdir 后 root 会解析到错误位置。
+        """
+        object.__setattr__(self, "root", self.root.expanduser().resolve())
         for name in (
             "max_note_chars",
             "search_budget",

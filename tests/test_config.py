@@ -47,6 +47,35 @@ def test_root_is_resolved(tmp_path: Path) -> None:
     assert settings.root.is_absolute()
 
 
+def test_direct_construction_resolves_root(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    """直接构造 Settings 也要 resolve root，不能绕过 load_settings。
+
+    相对路径、`~` 开头、已是绝对路径三种构造后 root 均为绝对已 resolve
+    路径，且 chdir 后不变——否则 safety.py 的 is_relative_to 会随 CWD 失真。
+    """
+    (tmp_path / "notes").mkdir()
+    monkeypatch.chdir(tmp_path)
+    expected = (tmp_path / "notes").resolve()
+
+    relative = Settings(root=Path("notes"))
+    assert relative.root == expected
+    assert relative.root.is_absolute()
+
+    tilde = Settings(root=Path("~/notes-mcp-settings-root-test"))
+    assert tilde.root == Path("~/notes-mcp-settings-root-test").expanduser().resolve()
+    assert tilde.root.is_absolute()
+
+    absolute = Settings(root=tmp_path / "notes" / ".." / "notes")
+    assert absolute.root == expected
+    assert absolute.root.is_absolute()
+
+    monkeypatch.chdir("/")
+    assert relative.root == expected
+    assert absolute.root == expected
+
+
 def test_env_vars_are_used(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv(ENV_MAX_NOTE_CHARS, "1000")
     monkeypatch.setenv(ENV_SEARCH_BUDGET, "2000")
