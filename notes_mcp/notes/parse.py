@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import re
+from typing import NamedTuple
 
 TAG_RE = re.compile(r"(?<![\w#])#([\w\u4e00-\u9fff][\w\u4e00-\u9fff/-]*)")
 r"""匹配正文里的 `#tag` / `#中文标签` / `#a/b`。
@@ -65,6 +66,105 @@ def decode_bytes(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+_TAG_VALUE_RE = re.compile(r"^[\w\u4e00-\u9fff][\w\u4e00-\u9fff/-]*$")
+"""frontmatter 里 `tags:` 值的合法字符集，与 TAG_RE 的标签字符集一致。
+
+含空格等非法字符的值直接丢掉，不参与标签统计。
+"""
+
+
+class _Frontmatter(NamedTuple):
+    """剥离结果：正文 + frontmatter 里的标题与标签。"""
+
+    body: str
+    title: str | None
+    tags: tuple[str, ...]
+
+
+def _clean_fm_scalar(raw: str) -> str:
+    """frontmatter 标量值去引号：`title: "我的笔记"` → `我的笔记`。"""
+    value = raw.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+        value = value[1:-1].strip()
+    return value
+
+
+def _fm_tag(raw: str) -> str | None:
+    """一个 frontmatter 标签值 → 合法标签或 None。
+
+    去掉引号与开头的 `#`（`tags: [#mcp]` 这种写法），再按 TAG_RE 的
+    合法字符集校验；末尾多余的 `/`、`-` 与正文标签一样剔掉。
+    """
+    value = _clean_fm_scalar(raw).lstrip("#").rstrip("/-")
+    if value and _TAG_VALUE_RE.match(value):
+        return value
+    return None
+
+
+def _split_frontmatter(text: str) -> _Frontmatter:
+    """剥离文件开头的 YAML frontmatter（`--- ... ---` 或 `--- ... ...`）。
+
+    只认文件起始处的第一个块：第一行必须是 `---`，且后面必须出现
+    结束行（`---` 或 `...`）；没有结束行就不是 frontmatter，整篇按正文处理。
+    块里只做行级键值提取：`title:` 与 `tags:`（`[a, b]` 列表与 `- a` 块列表
+    两种写法），不做完整 YAML 解析，保持零依赖。
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return _Frontmatter(text, None, ())
+    end: int | None = None
+    for i in range(1, len(lines)):
+        if lines[i].strip() in ("---", "..."):
+            end = i
+            break
+    if end is None:
+        return _Frontmatter(text, None, ())
+    title: str | None = None
+    tags: set[str] = set()
+    i = 1
+    while i < end:
+        stripped = lines[i].strip()
+        if stripped.startswith("title:"):
+            if title is None:
+                value = _clean_fm_scalar(stripped.removeprefix("title:"))
+                if value:
+                    title = value
+            i += 1
+        elif stripped.startswith("tags:"):
+            rest = stripped.removeprefix("tags:").strip()
+            if rest.startswith("[") and rest.endswith("]"):
+                for item in rest[1:-1].split(","):
+                    tag = _fm_tag(item)
+                    if tag is not None:
+                        tags.add(tag)
+                i += 1
+            elif rest:
+                tag = _fm_tag(rest)
+                if tag is not None:
+                    tags.add(tag)
+                i += 1
+            else:
+                # `- a` 块列表：连续的 `- item` 行，空行跳过，别的行结束。
+                i += 1
+                while i < end:
+                    item_line = lines[i].strip()
+                    if not item_line:
+                        i += 1
+                        continue
+                    if item_line.startswith("- "):
+                        tag = _fm_tag(item_line[2:])
+                        if tag is not None:
+                            tags.add(tag)
+                        i += 1
+                        continue
+                    break
+        else:
+            i += 1
+    body_start = end + 1
+    body = "\n".join(lines[body_start:])
+    return _Frontmatter(body, title, tuple(sorted(tags)))
+
+
 def _is_tag_only_line(stripped: str) -> bool:
     """这行是不是纯标签行，例如 `#mcp #design`。"""
     return bool(stripped) and all(
@@ -86,9 +186,13 @@ def extract_title(text: str, fallback: str) -> str:
     跳过三类"不是标题"的行：围栏行与围栏内的代码、纯标签行（如 `#mcp #design`）。
     标题行必须是 `#` + 空白的严格标题（`_HEADING_RE`）；`#标题` 这种没空格的写法
     在 Markdown 里不是标题，按标签行处理，继续往下找。
+
+    frontmatter 先剥离：`---` 块本身不是标题，块里的 `#` 也不参与判定。
+    没有 `#` 标题时，frontmatter 的 `title:` 优先于第一行非空内容。
     """
+    fm = _split_frontmatter(text)
     fence: str | None = None
-    for line in text.splitlines():
+    for line in fm.body.splitlines():
         stripped = line.strip()
         if not stripped:
             continue
@@ -106,7 +210,11 @@ def extract_title(text: str, fallback: str) -> str:
             return title or fallback
         if _is_tag_only_line(stripped):
             continue
+        if fm.title:
+            return fm.title[:80]
         return stripped[:80]
+    if fm.title:
+        return fm.title[:80]
     return fallback
 
 
@@ -115,10 +223,14 @@ def extract_tags(text: str) -> tuple[str, ...]:
 
     不去掉代码块的话，笔记里贴一段 `# 注释` 或 shell 的 `# TODO` 都会被算成标签。
     单遍扫描：逐行跟踪围栏状态，不再像以前那样先全文复制一份再逐行扫。
+
+    frontmatter 先剥离：块里的 `#` 不算标签；块里 `tags:` 声明的标签
+    与正文标签合并返回。
     """
-    tags: set[str] = set()
+    fm = _split_frontmatter(text)
+    tags: set[str] = set(fm.tags)
     fence: str | None = None
-    for line in text.splitlines():
+    for line in fm.body.splitlines():
         marker = _fence_marker(line)
         if fence is None:
             if marker is not None:

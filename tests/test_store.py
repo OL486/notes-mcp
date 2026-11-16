@@ -47,6 +47,73 @@ def test_title_falls_back_to_filename() -> None:
     assert extract_title("   \n\n", "2026-10-01") == "2026-10-01"
 
 
+def test_title_skips_frontmatter_block() -> None:
+    """frontmatter 的 `---` 块不是标题，块里的内容也不参与标题判定。"""
+    text = "---\ntitle: 我的笔记\ntags: [mcp, 设计]\n---\n\n# 真实标题\n\n正文"
+    assert extract_title(text, "fallback") == "真实标题"
+
+
+def test_title_uses_frontmatter_title_without_heading() -> None:
+    """没有 `#` 标题时，frontmatter 的 `title:` 优先于第一行非空内容。"""
+    text = "---\ntitle: 我的笔记\ntags: [mcp]\n---\n\n正文第一行\n第二行"
+    assert extract_title(text, "fallback") == "我的笔记"
+    quoted = '---\ntitle: "带引号的标题"\n---\n\n正文'
+    assert extract_title(quoted, "fallback") == "带引号的标题"
+
+
+def test_title_heading_beats_frontmatter_title() -> None:
+    """有 `#` 标题时它优先，frontmatter 的 `title:` 只是 fallback。"""
+    text = "---\ntitle: 元数据标题\n---\n\n# 正文标题\n"
+    assert extract_title(text, "fallback") == "正文标题"
+
+
+def test_title_frontmatter_dotdotdot_terminator() -> None:
+    """frontmatter 也可以用 `...` 结束。"""
+    text = "---\ntitle: 元数据标题\ntags: [mcp]\n...\n\n# 正文标题\n"
+    assert extract_title(text, "fallback") == "正文标题"
+    assert extract_tags(text) == ("mcp",)
+
+
+def test_tags_from_frontmatter_flow_list() -> None:
+    """`tags: [a, b]` 列表写法与正文标签合并。"""
+    text = "---\ntags: [mcp, 设计]\n---\n\n正文 #正文标签\n"
+    assert extract_tags(text) == ("mcp", "正文标签", "设计")
+    single = "---\ntags: mcp\n---\n\n正文\n"
+    assert extract_tags(single) == ("mcp",)
+
+
+def test_tags_from_frontmatter_block_list() -> None:
+    """`tags:` 下 `- a` 块列表写法，值可带引号。"""
+    text = '---\ntags:\n  - mcp\n  - "设计"\n  - a/b\n---\n\n正文\n'
+    assert extract_tags(text) == ("a/b", "mcp", "设计")
+
+
+def test_frontmatter_hash_lines_are_not_tags() -> None:
+    """frontmatter 块里的 `#`（标题值、注释行）不算标签。"""
+    text = '---\ntitle: "#notatag"\n# 这行是注释\ntags: [mcp]\n---\n\n正文 #real\n'
+    assert extract_tags(text) == ("mcp", "real")
+    assert extract_title(text, "fallback") == "#notatag"
+
+
+def test_unclosed_frontmatter_is_not_stripped() -> None:
+    """没有结束行的 `---` 块不是 frontmatter，整篇按正文处理。"""
+    text = "---\ntitle: 元数据标题\n\n# 真标题\n"
+    assert extract_title(text, "fallback") == "---"
+    assert extract_tags(text) == ()
+
+
+def test_store_loads_frontmatter_note(tmp_path: Path) -> None:
+    """端到端：带 frontmatter 的笔记进 store，标题与标签都正确。"""
+    note = tmp_path / "fm.md"
+    note.write_text(
+        "---\ntitle: FM 标题\ntags: [mcp]\n---\n\n# 正文标题\n\n内容 #body\n",
+        encoding="utf-8",
+    )
+    loaded = FilesystemNoteStore(tmp_path).load_note(note)
+    assert loaded.title == "正文标题"
+    assert loaded.tags == ("body", "mcp")
+
+
 def test_tags_are_parsed() -> None:
     text = "# 标题\n\n正文 #mcp #中文标签\n\n#a/b\n"
     assert extract_tags(text) == ("a/b", "mcp", "中文标签")
