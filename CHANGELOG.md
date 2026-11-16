@@ -8,13 +8,17 @@
 
 ### Added
 
-- 新增 `list_notes` 工具：按 mtime 倒序、offset/limit 翻页列出全部笔记，支持按目录过滤
-  （PR #14，Closes #13）。`notes://index` 资源保持现状，作快速入口。
-- 发布流程：新增本文件；新增 `.github/workflows/release.yml`，打 tag `v*` 即跑测试 →
-  `uv build` → 把 wheel 与 sdist 挂到 GitHub Release 上（本次 PR；tag 与 Release
-  本身需手动创建，步骤见 PR 正文）。
+- 发布流程：新增本文件（CHANGELOG.md）。
 - `pyproject.toml` 补许可证、作者与仓库链接元数据（`license = "MIT"`、`authors`、
   `[project.urls]`）。
+
+### 在途（尚未合进 main，待合并/落地后再记入上面）
+
+- `list_notes` 工具（PR #14 未合）：按 mtime 倒序、offset/limit 翻页列出全部笔记，
+  支持按目录过滤。待 #14 合并当天再记入 Added；此前 main 上没有任何 `list_notes`。
+- 发布流程的 release.yml（未落地）：`.github/workflows/release.yml` 从未进过 git
+  历史，workflow 全文目前只在 PR #16 正文的折叠块里；待在网页端手动新建该文件、
+  打 tag `v0.1.0` 并确认 Release 挂上 wheel 与 sdist 后，再记入 Added。
 
 ### Fixed
 
@@ -64,4 +68,4 @@
 
 - `read_note` 超过 20000 字符截断后，剩余部分暂无办法读取（分页是新功能，待定）。
 - 根目录内的符号链接目录暂不扫描（跟随还是声明不支持，待定）。
-- `notes://index` 按预算裁剪、无翻页（由 Unreleased 里的 `list_notes` 解决）。
+- `notes://index` 按预算裁剪、无翻页（待 PR #14 合并后由 `list_notes` 解决，见上文“在途”）。
