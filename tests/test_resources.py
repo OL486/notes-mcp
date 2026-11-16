@@ -39,6 +39,7 @@ def test_index_respects_budget(tmp_path: Path) -> None:
     assert payload["truncated"] is True
     assert payload["returned"] < payload["count"]
     assert "hint" in payload
+    assert "list_notes" in payload["hint"]
 
 
 def test_index_respects_small_budget(tmp_path: Path) -> None:
@@ -53,7 +54,10 @@ def test_index_respects_small_budget(tmp_path: Path) -> None:
         assert len(text) <= budget, f"index_budget={budget} 时输出 {len(text)} 字符"
         payload = json.loads(text)
         assert payload["truncated"] is True
-        assert payload["returned"] == 0
+    # 预算 100 时连一条都装不下；预算 500 时能装 1 条是正常行为，
+    # 预算承诺只管输出长度，不管"必须返回 0 条"。
+    text = build_index(Settings(root=root.resolve(), index_budget=100))
+    assert json.loads(text)["returned"] == 0
 
 
 def test_read_note_resource(settings: Settings) -> None:

@@ -53,7 +53,13 @@ def test_modern_client_sees_all_primitives(notes_root: Path) -> None:
             assert client.protocol_version == MODERN
 
             tools = sorted(t.name for t in (await client.list_tools()).tools)
-            assert tools == ["list_recent", "notes_stats", "read_note", "search_notes"]
+            assert tools == [
+                "list_notes",
+                "list_recent",
+                "notes_stats",
+                "read_note",
+                "search_notes",
+            ]
 
             resources = [r.uri for r in (await client.list_resources()).resources]
             assert "notes://index" in resources

@@ -1,4 +1,4 @@
-"""端到端自检：走真实 stdio 传输，把四个工具、两个资源、一个提示都跑一遍。
+"""端到端自检：走真实 stdio 传输，把五个工具、两个资源、一个提示都跑一遍。
 
 分两段：
   A. 用 SDK 的高层 Client（mode="2026-07-28"）验证功能；
@@ -107,8 +107,9 @@ async def part_a() -> None:
         names = sorted(t.name for t in tools.tools)
         print(f"  工具列表: {names}")
         check(
-            "四个工具都在",
-            names == ["list_recent", "notes_stats", "read_note", "search_notes"],
+            "五个工具都在",
+            names
+            == ["list_notes", "list_recent", "notes_stats", "read_note", "search_notes"],
             str(names),
         )
 
@@ -142,6 +143,22 @@ async def part_a() -> None:
             f"{expected_recent} 篇" in text,
             text[:80],
         )
+
+        # --- list_notes ---
+        result = await client.call_tool("list_notes", {"offset": 0, "limit": 2})
+        text = _tool_text(result)
+        print("\n  --- list_notes(offset=0, limit=2) ---\n  " + text[:500].replace("\n", "\n  "))
+        check("list_notes 成功", not result.is_error)
+        # 期望顺序从样本实际 mtime 算，不写死——刚 clone 时 mtime 全是检出时间，
+        # seed_mtimes 没跑过也一样要对（与 list_recent 的 expected_recent 同一做法）。
+        expected_order = sorted(_sample_notes(), key=lambda n: n.mtime, reverse=True)[:2]
+        first, second = expected_order[0].rel, expected_order[1].rel
+        check(
+            "list_notes 按 mtime 倒序",
+            text.index(first) < text.index(second),
+            text[:200],
+        )
+        check("list_notes 未超预算", len(text) <= 4000, f"{len(text)} 字符")
 
         # --- notes_stats ---
         result = await client.call_tool("notes_stats", {})

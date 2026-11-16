@@ -85,7 +85,7 @@ def _dump_index(
         "notes": entries,
     }
     if hint and payload["truncated"]:
-        payload["hint"] = "清单被预算截断，请用 list_recent 或 search_notes 定位剩余笔记。"
+        payload["hint"] = "清单被预算截断，请用 list_notes 翻页查看剩余笔记。"
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
 

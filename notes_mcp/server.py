@@ -36,7 +36,8 @@ INSTRUCTIONS = """\
 这是一个只读的本地 Markdown 笔记服务，不会写入、修改或删除任何文件。
 
 使用顺序建议：
-1. 不确定有哪些笔记时，先读 `notes://index` 或调用 `list_recent`；
+1. 不确定有哪些笔记时，先读 `notes://index`、调用 `list_recent`，
+   或用 `list_notes` 翻页列出全部笔记；
 2. 需要找内容时调用 `search_notes`，它返回的是命中行附近的**片段**，不是整篇；
 3. 片段不够用时，再用 `read_note` 精确读取某一篇。
 
@@ -69,7 +70,7 @@ def create_server(settings: Settings) -> MCPServer:
 
 
 def _register_tools(server: MCPServer, settings: Settings) -> None:
-    """四个工具。
+    """五个工具。
 
     description 是写给**模型**看的，不是写给用户看的：说清"什么时候该用我"、
     "我返回什么形态"、"我的上限是多少"，模型的调用正确率会明显不同。
@@ -132,6 +133,26 @@ def _register_tools(server: MCPServer, settings: Settings) -> None:
         """days: 回溯天数，1-3650，默认 7。"""
         try:
             return tool_impl.run_list_recent(settings, days).text
+        except (ValueError, OSError) as exc:
+            raise ToolError(str(exc)) from exc
+
+    @server.tool(
+        name="list_notes",
+        description=(
+            "按修改时间倒序翻页列出全部笔记（相对路径 + 修改时间 + 首行标题），"
+            f"单次返回不超过 {settings.list_budget} 字符。"
+            "适合浏览全部笔记或按目录翻页；notes://index 被预算截断时用它拿剩余条目。"
+        ),
+        structured_output=False,
+    )
+    def list_notes(offset: int = 0, limit: int = 20, dir: str = "") -> str:
+        """offset: 从第几篇开始（0 起）；limit: 最多返回几篇；dir: 只列该目录，空串表示全部。"""
+        try:
+            return tool_impl.run_list_notes(settings, offset, limit, dir).text
+        except PathRejected as exc:
+            # PathRejected 不是 ValueError 的子类（见 errors.py），
+            # 必须单独接，否则会漏成堆栈；模型需要的是可读的纠正提示。
+            raise ToolError(str(exc)) from exc
         except (ValueError, OSError) as exc:
             raise ToolError(str(exc)) from exc
 

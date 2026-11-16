@@ -46,6 +46,6 @@ def run_list_recent(settings: Settings, days: int = 7) -> RecentOutcome:
         blocks,
         settings.recent_budget,
         header=header,
-        overflow_advice="请缩小 days 范围。",
+        overflow_advice="请用 list_notes 翻页浏览全部笔记，或缩小 days 范围。",
     )
     return RecentOutcome(text=text, count=returned, truncated=truncated)
