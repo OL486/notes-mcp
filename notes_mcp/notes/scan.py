@@ -59,6 +59,11 @@ def iter_note_files(root: Path) -> list[Path]:
                     continue
                 if not resolved.is_relative_to(resolved_root):
                     continue
+                # 解析后的目标也要过排除检查：指向 .git / node_modules 的
+                # 链接名本身不含排除段，只看链接名会被绕过。
+                rel_parts = resolved.relative_to(resolved_root).parts
+                if any(p.startswith(".") or p in SKIP_DIRS for p in rel_parts):
+                    continue
                 if resolved in visited:
                     continue
                 visited.add(resolved)

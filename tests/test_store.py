@@ -283,6 +283,45 @@ def test_scan_skips_symlink_dir_pointing_outside_root(
         FilesystemNoteStore(notes_root).load_note(link / "secret.md")
 
 
+def test_scan_skips_symlink_dir_to_hidden_dir(notes_root: Path) -> None:
+    """P1-3：指向 .git 的链接不能绕过排除检查——只看链接名时，
+    link-to-git 本身不含隐藏段，里面的笔记会被扫进来。"""
+    git_dir = notes_root / ".git"
+    git_dir.mkdir()
+    (git_dir / "secret.md").write_text("# secret\n不该被读到\n", encoding="utf-8")
+    link = notes_root / "link-to-git"
+    try:
+        os.symlink(git_dir, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+
+    rels = {p.relative_to(notes_root).as_posix() for p in iter_note_files(notes_root)}
+    assert "link-to-git/secret.md" not in rels
+    assert not any("secret.md" in r for r in rels)
+
+    notes = FilesystemNoteStore(notes_root).load_all()
+    assert all("不该被读到" not in note.text for note in notes)
+
+
+def test_scan_skips_symlink_dir_to_skip_dir(notes_root: Path) -> None:
+    """P1-3：指向 node_modules 的链接同样不能绕过 SKIP_DIRS 检查。"""
+    nm_dir = notes_root / "node_modules"
+    nm_dir.mkdir()
+    (nm_dir / "nm.md").write_text("# nm\n不该被读到\n", encoding="utf-8")
+    link = notes_root / "link-to-nm"
+    try:
+        os.symlink(nm_dir, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+
+    rels = {p.relative_to(notes_root).as_posix() for p in iter_note_files(notes_root)}
+    assert "link-to-nm/nm.md" not in rels
+    assert not any("nm.md" in r for r in rels)
+
+    notes = FilesystemNoteStore(notes_root).load_all()
+    assert all("不该被读到" not in note.text for note in notes)
+
+
 def test_scan_symlink_dir_cycle_does_not_loop(notes_root: Path) -> None:
     """P1-7 方向 A：循环链接（A→B→A）与指回根自身的链接不能让扫描
     无限递归；两个目录里的真实笔记各出现一次。"""
