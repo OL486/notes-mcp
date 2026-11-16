@@ -77,6 +77,11 @@ def iter_note_files(root: Path) -> list[Path]:
                     continue
                 if not resolved.is_relative_to(resolved_root):
                     continue
+                # 目标路径里的隐藏段 / SKIP_DIRS 也要排除：链接名本身干净，
+                # 但 `link.md → .git/secret.md` 这种仍会把排除目录里的文件扫进来。
+                rel = resolved.relative_to(resolved_root)
+                if any(part.startswith(".") or part in SKIP_DIRS for part in rel.parts):
+                    continue
             found.append(entry)
     found.sort(key=lambda p: p.relative_to(root).as_posix())
     return found

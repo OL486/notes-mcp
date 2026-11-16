@@ -106,3 +106,14 @@ def test_stats_reports_skipped_oversized(tmp_path: Path) -> None:
     assert "笔记总数：1 篇" in text
     assert "超大文件已跳过：1 篇" in text
     assert "10 MB" in text
+
+
+def test_stats_empty_root_with_only_oversized_files(tmp_path: Path) -> None:
+    """P2-8：根目录里只有超大文件时，stats 不能只说"为空"，要说明另有 N 篇因超大未读入。"""
+    root = tmp_path / "notes"
+    root.mkdir()
+    (root / "big.md").write_bytes(b"x" * (MAX_NOTE_BYTES + 1))
+
+    text = run_stats(Settings(root=root.resolve()))
+    assert "笔记根目录为空" in text
+    assert "另有 1 篇因超过 10 MB 未读入" in text

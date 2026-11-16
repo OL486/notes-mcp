@@ -90,10 +90,23 @@ class _Frontmatter(NamedTuple):
 
 
 def _clean_fm_scalar(raw: str) -> str:
-    """frontmatter 标量值去引号：`title: "我的笔记"` → `我的笔记`。"""
+    """frontmatter 标量值去引号与 YAML 注释。
+
+    `title: "我的笔记"` → `我的笔记`；`title: 我的笔记 # 这是注释` → `我的笔记`。
+    YAML 里 `#` 前有空格即注释，只剥「空格 + #」——`C#` 这类无空格的不动；
+    引号里的 `#` 不是注释，`"a # b"` 照单全收。引号后的注释也剥掉，
+    所以 `title: "我的笔记" # 注释` 同样只剩 `我的笔记`。
+    """
     value = raw.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
-        value = value[1:-1].strip()
+    if value[:1] in ('"', "'"):
+        quote = value[0]
+        closing = value.find(quote, 1)
+        if closing > 0:
+            return value[1:closing].strip()
+        return value[1:].strip()
+    hash_pos = value.find(" #")
+    if hash_pos >= 0:
+        value = value[:hash_pos].rstrip()
     return value
 
 
@@ -195,15 +208,23 @@ def extract_title(text: str, fallback: str) -> str:
     标题行必须是 `#` + 空白的严格标题（`_HEADING_RE`）；`#标题` 这种没空格的写法
     在 Markdown 里不是标题，按标签行处理，继续往下找。
 
+    首行非空内容若是 `---` / `...` 也跳过：无结束行的 `---` 不是 frontmatter，
+    但它只是分隔线，不能当标题（P2-1；仅跳过第一行即可）。
+
     frontmatter 先剥离：`---` 块本身不是标题，块里的 `#` 也不参与判定。
     没有 `#` 标题时，frontmatter 的 `title:` 优先于第一行非空内容。
     """
     fm = _split_frontmatter(text)
     fence: str | None = None
+    first = True  # 首行非空内容：`---` / `...` 只是分隔线，不是标题。
     for line in fm.body.splitlines():
         stripped = line.strip()
         if not stripped:
             continue
+        if first:
+            first = False
+            if stripped in ("---", "..."):
+                continue
         marker = _fence_marker(line)
         if fence is None:
             if marker is not None:

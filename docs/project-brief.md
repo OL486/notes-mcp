@@ -1,7 +1,7 @@
 # [项目] notes-mcp：从零实现一个只读本地笔记 MCP Server（MCP 2026-07-28）
 
 > 这份文件就是 issue 正文，可以整段粘贴到 GitHub。
-> 代码已在本地完成并通过 `pytest`（136 个用例，135 通过、1 跳过）+ `scripts/verify.py`（22 项端到端检查），
+> 代码已在本地完成并通过 `pytest`（197 个用例，195 通过、2 跳过）+ `scripts/verify.py`（25 项端到端检查），
 > 下方数字为第四轮优化时的快照，最新数字以 `uv run pytest` 为准。
 > 下方「交付清单」即当前实际状态。逐阶段的协议报文与讲解见 `docs/WALKTHROUGH.md`。
 
@@ -48,8 +48,8 @@
 - [x] **S4** `weekly-review` prompt + 上下文预算实测表
 - [x] **S5** 客户端接入配置（Claude Desktop / Cursor）+ 真实任务调用序列
 - [x] **S6** Streamable HTTP 传输（含有状态 / 无状态两种模式实测）
-- [x] 120 个 pytest 用例（含 8 个端到端：真起子进程走 stdio）
-- [x] `scripts/verify.py`：22 项检查，含 **stdout 纯净度**（每行必须是合法 JSON-RPC）
+- [x] 197 个 pytest 用例（含 10 个端到端：6 个真起子进程走 stdio，4 个走 Streamable HTTP）
+- [x] `scripts/verify.py`：25 项检查，含 **stdout 纯净度**（每行必须是合法 JSON-RPC）
 - [x] 9 篇示例笔记 + 可复现的 mtime 脚本
 
 ---
@@ -78,9 +78,9 @@
 |---|---:|---|---|
 | `search_notes(query, limit=20)` | **7,631** | 预算 8000 | 命中 200 篇 → 实际返回 3 篇，`truncated=true` |
 | `read_note(超长笔记)` | **19,836** | 上限 20000 | 含截断提示 |
-| `list_recent(days=3650)` | **3,994** | 预算 4000 | 200 篇全在窗口内 |
-| `notes_stats` | **442** | 预算 3000 | 50 个标签 |
-| `notes://index` | **7,642** | 预算 8000 | 200 篇 → 返回 37 条 |
+| `list_recent(days=3650)` | **3,999** | 预算 4000 | 200 篇全在窗口内 |
+| `notes_stats` | **390** | 预算 3000 | 50 个标签 |
+| `notes://index` | **7,778** | 预算 8000 | 200 篇 → 返回 37 条 |
 | `notes://note/{path}` | **19,828** | 上限 20000 | 含截断提示 |
 
 单次调用最坏约 **20,000 字符**（≈ 10K-14K 中文 token），占 200K 窗口的 5-7%。
@@ -101,8 +101,8 @@
 
 ### 规模
 
-- 服务端 `notes_mcp/` 1257 行（10 个文件，零额外依赖）
-- 测试 1398 行 / 120 个用例；脚本约 500 行
+- 服务端 `notes_mcp/` 2336 行（25 个文件，零额外依赖）
+- 测试 2935 行 / 197 个用例；脚本约 500 行
 
 ---
 
@@ -208,10 +208,10 @@ uv sync
 npx @modelcontextprotocol/inspector@2.12.0 --cli --protocol-era modern \
   uv run notes-mcp --root ./sample_notes --method tools/list
 
-# 2. 功能 + stdout 纯净度（22 项）
+# 2. 功能 + stdout 纯净度（25 项）
 uv run python scripts/verify.py
 
-# 3. 单元 + 端到端（120 个用例）
+# 3. 单元 + 端到端（197 个用例）
 uv run pytest
 
 # 4. 预算表
@@ -224,5 +224,5 @@ uv run python scripts/demo_weekly_review.py MCP
 uv run notes-mcp --root ./sample_notes --transport streamable-http --port 8932 --stateless-http
 ```
 
-当前状态：以上 1-6 全部通过。`pytest` 覆盖 120 个用例，其中 8 个是端到端
-（真起子进程、走 stdio、发真实 JSON-RPC），包括"stdout 每行必须是合法 JSON"这一条。
+当前状态：以上 1-6 全部通过。`pytest` 覆盖 197 个用例，其中 10 个是端到端
+（6 个真起子进程走 stdio、4 个走 Streamable HTTP，均发真实 JSON-RPC），包括"stdout 每行必须是合法 JSON"这一条。

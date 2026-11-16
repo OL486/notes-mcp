@@ -56,6 +56,8 @@ def _merge_windows(
       白白吃掉三份预算。
     - 不限行长的话，一篇 200 行全命中的笔记会合成一个 200 行的巨型片段，
       它既塞不进预算（最后返回 0 个片段），也不符合"片段"的语义。
+    - 合并会超长时新开窗口，起点要夹到上一窗口之后（`prev_end + 1`），
+      否则同一行会在两个片段里各出现一次。
     """
     windows: list[tuple[int, int]] = []
     for index in matched:
@@ -66,6 +68,11 @@ def _merge_windows(
             merged_end = max(prev_end, end)
             if start <= prev_end + 1 and merged_end - prev_start + 1 <= max_lines:
                 windows[-1] = (prev_start, merged_end)
+                continue
+            # 合并会超长时新开窗口：起点夹到上一窗口之后，避免行重复出现。
+            start = max(start, prev_end + 1)
+            if start > end:
+                # 整个窗口已被上一窗口覆盖（context 很大时），直接跳过。
                 continue
         windows.append((start, end))
     return windows

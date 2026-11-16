@@ -8,7 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from notes_mcp.safety import PathRejected, resolve_note_path, to_note_uri
+from notes_mcp.safety import (
+    PathRejected,
+    resolve_note_dir,
+    resolve_note_path,
+    to_note_uri,
+)
 
 
 def test_accepts_plain_relative_path(notes_root: Path) -> None:
@@ -105,3 +110,36 @@ def test_error_message_is_actionable(notes_root: Path) -> None:
 def test_to_note_uri_keeps_slashes() -> None:
     assert to_note_uri("daily/2026-10-25.md") == "notes://note/daily/2026-10-25.md"
     assert to_note_uri("a b/c.md") == "notes://note/a%20b/c.md"
+
+
+def test_resolve_note_dir_accepts_plain_and_dot(notes_root: Path) -> None:
+    """P2-7：空串与 `.` 都表示根目录，返回 \"\"。"""
+    assert resolve_note_dir(notes_root, "") == ""
+    assert resolve_note_dir(notes_root, ".") == ""
+    assert resolve_note_dir(notes_root, "daily") == "daily"
+    assert resolve_note_dir(notes_root, "daily/") == "daily"
+
+
+def test_resolve_note_dir_rejects_absolute_root(notes_root: Path) -> None:
+    """P2-7：`dir=\"/\"` 是绝对路径，拒绝——不能洗成空串当根目录。"""
+    with pytest.raises(PathRejected):
+        resolve_note_dir(notes_root, "/")
+
+
+def test_resolve_note_dir_rejects_non_string(notes_root: Path) -> None:
+    """P2-7：`dir` 不是字符串时拒绝。"""
+    with pytest.raises(PathRejected):
+        resolve_note_dir(notes_root, 123)  # type: ignore[arg-type]
+
+
+def test_resolve_note_dir_rejects_symlink_escape(
+    notes_root: Path, tmp_path: Path
+) -> None:
+    """P2-7：指向根外的目录链接不能当 list_notes 的 dir 用。"""
+    link = notes_root / "escape"
+    try:
+        os.symlink(tmp_path, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+    with pytest.raises(PathRejected):
+        resolve_note_dir(notes_root, "escape")

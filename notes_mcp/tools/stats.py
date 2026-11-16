@@ -15,6 +15,15 @@ def run_stats(settings: Settings) -> str:
     store = make_store(settings)
     notes = store.load_all()
     if not notes:
+        if store.skipped_oversized:
+            # 根目录里只有超大文件：别只说"为空"，否则用户会去检查路径，
+            # 其实路径没错，只是文件都因超大被跳过了。
+            return (
+                "笔记根目录为空。\n"
+                f"另有 {store.skipped_oversized} 篇因超过 "
+                f"{MAX_NOTE_BYTES // (1024 * 1024)} MB 未读入。\n"
+                "请检查目录是否正确，或先放入 .md 文件。"
+            )
         return "笔记根目录为空。\n请检查目录是否正确，或先放入 .md 文件。"
 
     total_units = sum(n.units for n in notes)

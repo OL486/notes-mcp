@@ -97,10 +97,29 @@ def test_frontmatter_hash_lines_are_not_tags() -> None:
     assert extract_title(text, "fallback") == "#notatag"
 
 
+def test_title_skips_leading_horizontal_rule() -> None:
+    """P2-1：无结束行的 `---` 不是 frontmatter，但也不能当标题，要跳过。"""
+    assert extract_title("---\n\n正文\n", "fallback") == "正文"
+    assert extract_title("...\n\n正文\n", "fallback") == "正文"
+    # 只跳过第一行：正文中间的 `---` 分隔线不影响第一行的判定。
+    assert extract_title("第一行\n---\n第二行\n", "fallback") == "第一行"
+
+
+def test_title_uses_frontmatter_title_with_yaml_comment() -> None:
+    """P2-2：frontmatter `title:` 里的 ` #` 注释要剥掉，`C#` 这种不动。"""
+    text = "---\ntitle: 我的笔记 # 这是注释\n---\n\n正文第一行\n"
+    assert extract_title(text, "fallback") == "我的笔记"
+    sharp = "---\ntitle: C# 入门\n---\n\n正文\n"
+    assert extract_title(sharp, "fallback") == "C# 入门"
+    quoted = '---\ntitle: "带引号的标题" # 注释\n---\n\n正文\n'
+    assert extract_title(quoted, "fallback") == "带引号的标题"
+
+
 def test_unclosed_frontmatter_is_not_stripped() -> None:
     """没有结束行的 `---` 块不是 frontmatter，整篇按正文处理。"""
     text = "---\ntitle: 元数据标题\n\n# 真标题\n"
-    assert extract_title(text, "fallback") == "---"
+    # P2-1：首行 `---` 是分隔线、不是标题，标题落到下一行非空内容。
+    assert extract_title(text, "fallback") == "title: 元数据标题"
     assert extract_tags(text) == ()
 
 
@@ -230,6 +249,71 @@ def test_scan_keeps_symlink_inside_root(notes_root: Path) -> None:
 
     rels = {p.relative_to(notes_root).as_posix() for p in iter_note_files(notes_root)}
     assert "alias.md" in rels
+
+
+def test_scan_skips_unreadable_directory(tmp_path: Path) -> None:
+    """P2-7：不可读目录不让扫描失败，其余文件照常扫到。"""
+    if os.geteuid() == 0:
+        pytest.skip("root 用户无视文件权限，chmod 000 测不出不可读")
+    root = tmp_path / "notes"
+    (root / "locked").mkdir(parents=True)
+    (root / "locked" / "hidden.md").write_text("# 藏起来的\n", encoding="utf-8")
+    (root / "ok.md").write_text("# 正常\n", encoding="utf-8")
+    os.chmod(root / "locked", 0o000)
+    try:
+        rels = {p.relative_to(root).as_posix() for p in iter_note_files(root)}
+    finally:
+        os.chmod(root / "locked", 0o755)
+    assert rels == {"ok.md"}
+
+
+def test_scan_skips_broken_file_symlink(tmp_path: Path) -> None:
+    """P2-7：断链的文件链接不进扫描结果，扫描也不报错。"""
+    root = tmp_path / "notes"
+    root.mkdir()
+    (root / "ok.md").write_text("# 正常\n", encoding="utf-8")
+    # 隐藏文件也不进扫描（scan.py 里 `entry.name.startswith(".")` 的分支）。
+    (root / ".hidden.md").write_text("# 隐藏\n", encoding="utf-8")
+    try:
+        os.symlink(root / "missing.md", root / "broken.md")
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+    rels = {p.relative_to(root).as_posix() for p in iter_note_files(root)}
+    assert rels == {"ok.md"}
+
+
+def test_scan_skips_broken_directory_symlink(tmp_path: Path) -> None:
+    """P2-7：断链的目录链接不进扫描，扫描也不报错。"""
+    root = tmp_path / "notes"
+    root.mkdir()
+    (root / "ok.md").write_text("# 正常\n", encoding="utf-8")
+    try:
+        os.symlink(root / "missing-dir", root / "broken-dir")
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+    rels = {p.relative_to(root).as_posix() for p in iter_note_files(root)}
+    assert rels == {"ok.md"}
+
+
+def test_scan_skips_file_symlink_into_excluded_dir(tmp_path: Path) -> None:
+    """文件链接的目标落在排除目录里时不扫进来：`link.md → .git/secret.md`。"""
+    root = tmp_path / "notes"
+    (root / ".git").mkdir(parents=True)
+    (root / ".git" / "secret.md").write_text("# 机密\n", encoding="utf-8")
+    (root / "node_modules").mkdir()
+    (root / "node_modules" / "x.md").write_text("# 依赖\n", encoding="utf-8")
+    (root / "ok.md").write_text("# 正常\n", encoding="utf-8")
+    try:
+        os.symlink(".git/secret.md", root / "link-git.md")
+        os.symlink("node_modules/x.md", root / "link-nm.md")
+        os.symlink("ok.md", root / "link-ok.md")
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不允许创建符号链接")
+    rels = {p.relative_to(root).as_posix() for p in iter_note_files(root)}
+    assert "link-git.md" not in rels
+    assert "link-nm.md" not in rels
+    assert "link-ok.md" in rels
+    assert "ok.md" in rels
 
 
 def test_scan_follows_symlink_dir_inside_root(notes_root: Path) -> None:

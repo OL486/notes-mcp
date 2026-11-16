@@ -248,8 +248,8 @@ notes_mcp/
 │   └── store.py   NoteStore 协议 + 朴素文件系统实现
 ├── store.py      兼容层（已废弃）：re-export notes/，一个版本后删除
 ├── budget.py     截断与预算拼装
-├── tools/        四个 Tool 的纯逻辑（不认识 MCP，可单测，原 tools.py 的拆分）
-│   ├── search.py / read.py / recent.py / stats.py / common.py
+├── tools/        五个 Tool 的纯逻辑（不认识 MCP，可单测，原 tools.py 的拆分）
+│   ├── search.py / read.py / recent.py / stats.py / list.py / common.py
 ├── services/
 │   └── read_note.py  读单篇的唯一实现（Tool 与 Resource 共用）
 ├── resources.py  两个 Resource 的纯逻辑
