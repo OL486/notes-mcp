@@ -8,7 +8,16 @@ from typing import cast
 import pytest
 
 from notes_mcp.config import Settings
+from notes_mcp.notes.search import _merge_windows
 from notes_mcp.tools import QueryRejected, run_search
+
+
+def test_merge_windows_never_overlaps() -> None:
+    """P2-9：窗口因超长无法合并时，新窗口起点夹到上一窗口之后，行不重复。"""
+    assert _merge_windows(list(range(16)), 100, 2, 15) == [(0, 14), (15, 17)]
+    windows = _merge_windows(list(range(30)), 100, 2, 10)
+    for prev, nxt in zip(windows, windows[1:], strict=False):
+        assert nxt[0] > prev[1], f"窗口重叠：{windows}"
 
 
 def test_returns_fragments_not_full_text(settings: Settings) -> None:

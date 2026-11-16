@@ -91,10 +91,6 @@ def resolve_note_path(
             "路径中不允许出现 ..，请使用根目录内的相对路径",
         )
 
-    if "." in parts:
-        # 单点段会被 resolve 消掉，本身无害，但出现它通常说明路径拼错了。
-        normalized = "/".join(p for p in parts if p != ".")
-
     # resolve(strict=False)：文件不存在时也返回一个确定的绝对路径，
     # 这样"越界"和"不存在"能给出两种不同的错误，模型才知道该改什么。
     target = (root / normalized).resolve(strict=False)
@@ -153,7 +149,9 @@ def resolve_note_dir(root: Path, raw: str) -> str:
     if not normalized:
         return ""
 
-    parts = [part for part in Path(normalized).parts if part != "."]
+    # pathlib 会把 `.` 段规范化掉（`PurePosixPath("a/./b").parts == ("a", "b")`），
+    # 所以这里不需要再过滤 `.`：`Path(".").parts` 本来就是空元组。
+    parts = Path(normalized).parts
     if ".." in parts:
         raise PathRejected(
             f"拒绝路径穿越：{raw}",

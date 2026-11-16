@@ -788,7 +788,7 @@ uv run notes-mcp --root ./sample_notes --transport streamable-http --port 8932 -
 
 ```bash
 uv run pytest                       # 单测 + 端到端
-uv run python scripts/verify.py     # 22 项检查，含 stdout 纯净度
+uv run python scripts/verify.py     # 25 项检查，含 stdout 纯净度
 uv run python scripts/budget_report.py   # 预算表
 uv run python scripts/demo_weekly_review.py MCP   # S5 调用序列
 ```
