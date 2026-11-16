@@ -160,6 +160,17 @@ def test_read_note_path_rejected_becomes_tool_error(settings: Settings) -> None:
     anyio.run(scenario)
 
 
+def test_missing_root_becomes_tool_error(tmp_path: Path) -> None:
+    """N6：根目录不存在时 search_notes 必须报可读的 ToolError，
+    而不是静默返回"已扫描 0 篇"。"""
+    async def scenario() -> None:
+        server = _server(Settings(root=tmp_path / "no-such-dir"))
+        with pytest.raises(ToolError, match="根目录不存在"):
+            await server.call_tool("search_notes", {"query": "MCP"})
+
+    anyio.run(scenario)
+
+
 def test_read_note_oserror_race_becomes_tool_error(
     settings: Settings, monkeypatch: MonkeyPatch
 ) -> None:

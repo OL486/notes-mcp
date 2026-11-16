@@ -49,14 +49,6 @@ def truncation_notice(returned: int, total: int, budget: int, advice: str) -> st
     )
 
 
-NOTICE_RESERVE = 240
-"""给截断提示预留的字符数（历史固定值，已废弃）。
-
-clip_with_notice 现在按实际提示长度动态算预留，不再用这个常量：
-提示长度由 advice 决定，advice 超长（例如 300 字符）时固定 240 会溢出。
-本常量仅保留作兼容，不再参与计算；新代码不要引用它。"""
-
-
 def clip_with_notice(text: str, budget: int, advice: str) -> tuple[str, bool]:
     """截断并在末尾附上提示，保证**含提示在内**不超过 budget。
 

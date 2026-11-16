@@ -22,7 +22,20 @@ from .scan import iter_note_files
 
 def make_store(settings: Settings) -> FilesystemNoteStore:
     """按 Settings 建一个文件系统存储。调用方统一走这里，不要直接
-    `FilesystemNoteStore(settings.root)`——以后换实现时只改这一处。"""
+    `FilesystemNoteStore(settings.root)`——以后换实现时只改这一处。
+
+    根目录不存在时直接报错，而不是静默返回空库：search 会说"已扫描 0 篇"、
+    stats 会说"笔记根目录为空"，用户会误以为笔记是空的而非路径配错了。
+    用 FileNotFoundError（OSError 子类）：server 层六个 handler
+    （search/read_note/recent/stats/index/note）都接 OSError，
+    PathRejected 反而只有 read_note 与 note 资源两处接——
+    用它这里会在四个工具上漏成裸堆栈。
+    """
+    if not settings.root.is_dir():
+        raise FileNotFoundError(
+            f"笔记根目录不存在：{settings.root}。"
+            "请检查 --root / NOTES_MCP_ROOT 是否配对。"
+        )
     return FilesystemNoteStore(settings.root)
 
 
@@ -43,6 +56,12 @@ class FilesystemNoteStore:
 
     def __init__(self, root: Path) -> None:
         self.root = root
+        # 根目录在一次调用内是不变的，但 load_note 每篇都要 resolve() 一次
+        # （系统调用 + 路径规范化）。这里缓存一次复用。
+        # 注意不能直接把 self.root 换成 resolved：load_note 里
+        # path.relative_to(self.root) 依赖的正是调用方传进来的原始根路径
+        # （根本身是符号链接时，扫描返回的路径仍以原始根为前缀）。
+        self._resolved_root = root.resolve()
 
     def load_note(self, path: Path, *, light: bool = False) -> Note:
         """读盘 + 解析成 Note。path 必须是根目录内的绝对路径。
@@ -54,7 +73,7 @@ class FilesystemNoteStore:
         # 二次校验：直接调 load_note 的调用方可能绕过 resolve_note_path，
         # 这里再确认一次解析后的真实路径仍在根目录内（符号链接逃逸）。
         resolved = path.resolve(strict=False)
-        if not resolved.is_relative_to(self.root.resolve()):
+        if not resolved.is_relative_to(self._resolved_root):
             raise PathRejected(
                 f"路径越界：{path} 解析后落在笔记根目录之外",
                 "只允许笔记根目录内的相对路径（符号链接指向外部同样会被拒绝）",
