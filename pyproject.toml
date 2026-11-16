@@ -3,10 +3,15 @@ name = "notes-mcp"
 dynamic = ["version"]
 description = "只读的本地 Markdown 笔记 MCP Server（MCP 2026-07-28 / mcp[cli] >= 2.0）"
 readme = "README.md"
+license = "MIT"
+authors = [{name = "RikStar"}]
 requires-python = ">=3.11"
 dependencies = [
     "mcp[cli]>=2.0.0,<3",
 ]
+
+[project.urls]
+Repository = "https://github.com/OL486/notes-mcp"
 
 [project.scripts]
 notes-mcp = "notes_mcp.__main__:main"
