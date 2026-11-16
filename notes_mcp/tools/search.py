@@ -29,6 +29,11 @@ def run_search(settings: Settings, query: str, limit: int = 5) -> SearchOutcome:
     返回整篇是最省事也最有害的实现：3 篇 5KB 的笔记就是 15K 字符，
     而模型真正需要的往往只有命中那几行。
     """
+    if not isinstance(query, str):
+        # MCP SDK 会在调用前按签名校验类型，协议路径上不可达；
+        # 但直接调用时 (query or "").strip() 会抛 AttributeError 漏成裸堆栈。
+        # resolve_note_path 对 path 也是同样的一行守卫。
+        raise QueryRejected("query 必须是字符串，请给出要检索的关键词。")
     needle = (query or "").strip()
     if not needle:
         raise QueryRejected("query 不能为空，请给出要检索的关键词（支持中英文子串）。")

@@ -6,13 +6,14 @@ from collections import Counter
 
 from ..budget import clip_with_notice
 from ..config import Settings
-from ..notes.store import make_store
+from ..notes.store import MAX_NOTE_BYTES, make_store
 from .common import _fmt_time
 
 
 def run_stats(settings: Settings) -> str:
     """笔记总数、总字数、标签分布。用于让模型先摸清语料规模再决定检索策略。"""
-    notes = make_store(settings).load_all()
+    store = make_store(settings)
+    notes = store.load_all()
     if not notes:
         return "笔记根目录为空。\n请检查目录是否正确，或先放入 .md 文件。"
 
@@ -31,6 +32,12 @@ def run_stats(settings: Settings) -> str:
         f"总字数：{total_units:,}（CJK 按字、拉丁按词）",
         f"标签数：{len(tag_counter)}",
     ]
+    if store.skipped_oversized:
+        # 超大文件被 load_all 跳过、没进总数：不写出来模型会以为"只有这些"。
+        lines.append(
+            f"超大文件已跳过：{store.skipped_oversized} 篇"
+            f"（单篇超过 {MAX_NOTE_BYTES // (1024 * 1024)} MB 未读入）"
+        )
     if tag_counter:
         lines.append("标签分布（前 20）：")
         for tag, count in tag_counter.most_common(20):

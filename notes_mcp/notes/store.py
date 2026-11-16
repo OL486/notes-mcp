@@ -14,10 +14,18 @@ from pathlib import Path
 from typing import Protocol
 
 from ..config import Settings
-from ..errors import PathRejected
+from ..errors import NoteTooLargeError, PathRejected
 from .models import Note
-from .parse import count_units, decode_bytes, extract_tags, extract_title
+from .parse import _split_frontmatter, count_units, decode_bytes, extract_tags, extract_title
 from .scan import iter_note_files
+
+MAX_NOTE_BYTES = 10 * 1024 * 1024
+"""单篇笔记大小上限（10 MiB）：超过的不读进内存，直接跳过。
+
+截断只发生在返回时（max_note_chars），读盘本身原来没有上限：
+一篇几百 MB 的 .md 误入根目录，每次 search / list_recent 都要全量读它。
+上限是"跳过"而不是"截断读前 10MB"——半篇笔记的标题/标签/字数全是错的，
+还不如不进索引，stats 里会报告跳过了几篇。"""
 
 
 def make_store(settings: Settings) -> FilesystemNoteStore:
@@ -56,6 +64,9 @@ class FilesystemNoteStore:
 
     def __init__(self, root: Path) -> None:
         self.root = root
+        # 最近一次 load_all() 里因超大而跳过的文件数；每次 load_all 开始时清零。
+        # run_stats 读它来报告"超大文件已跳过 N 篇"。
+        self.skipped_oversized = 0
         # 根目录在一次调用内是不变的，但 load_note 每篇都要 resolve() 一次
         # （系统调用 + 路径规范化）。这里缓存一次复用。
         # 注意不能直接把 self.root 换成 resolved：load_note 里
@@ -78,23 +89,35 @@ class FilesystemNoteStore:
                 f"路径越界：{path} 解析后落在笔记根目录之外",
                 "只允许笔记根目录内的相对路径（符号链接指向外部同样会被拒绝）",
             )
-        text = decode_bytes(path.read_bytes())
         rel = path.relative_to(self.root).as_posix()
+        st = path.stat()
+        if st.st_size > MAX_NOTE_BYTES:
+            # 先 stat 再读：超大文件不读进内存。NoteTooLargeError 是 OSError 子类，
+            # load_all 会单独捕获计数，read_note 服务会转成友好报错。
+            raise NoteTooLargeError(rel, st.st_size, MAX_NOTE_BYTES)
+        text = decode_bytes(path.read_bytes())
         return Note(
             path=path,
             rel=rel,
             title=extract_title(text, path.stem),
-            mtime=path.stat().st_mtime,
+            mtime=st.st_mtime,
             text=text,
             tags=() if light else extract_tags(text),
-            units=0 if light else count_units(text),
+            # 字数只算剥离 frontmatter 后的正文：块里的 title/tags 是元数据，
+            # 算进"总字数"会让 stats 虚高（长标题尤其明显）。
+            units=0 if light else count_units(_split_frontmatter(text).body),
         )
 
     def load_all(self, *, light: bool = False) -> list[Note]:
+        self.skipped_oversized = 0
         notes: list[Note] = []
         for path in iter_note_files(self.root):
             try:
                 notes.append(self.load_note(path, light=light))
+            except NoteTooLargeError:
+                # 超大文件跳过该篇并计数（在 stats 里报告），不让整次检索失败。
+                self.skipped_oversized += 1
+                continue
             except (OSError, PathRejected):
                 # 单篇读失败（权限、文件被占用）不该让整个检索失败。
                 # PathRejected 在这里只可能来自扫描与读取之间的竞态

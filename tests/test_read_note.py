@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from notes_mcp.config import Settings
+from notes_mcp.notes.store import MAX_NOTE_BYTES
+from notes_mcp.safety import PathRejected
 from notes_mcp.tools import run_read_note
 
 
@@ -41,3 +45,15 @@ def test_truncation_prefers_line_boundary(tmp_path: Path) -> None:
     body = outcome.text.split("\n\n[已截断")[0]
     assert body.endswith("x")  # 没有把某一行切成半截
     assert len(body) <= 200
+
+
+def test_oversized_note_is_rejected_with_actionable_message(tmp_path: Path) -> None:
+    """P2-7a：单篇读超大文件时给"文件过大"的明确报错，
+    而不是"文件可能被删除"的误导，也不是裸堆栈。"""
+    root = tmp_path / "notes"
+    root.mkdir()
+    (root / "big.md").write_bytes(b"x" * (MAX_NOTE_BYTES + 1))
+
+    settings = Settings(root=root.resolve())
+    with pytest.raises(PathRejected, match="过大"):
+        run_read_note(settings, "big.md")

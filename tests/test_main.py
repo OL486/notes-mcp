@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import errno
 from pathlib import Path
 
 import pytest
@@ -96,3 +97,40 @@ def test_root_from_env_is_used(notes_root: Path, monkeypatch: MonkeyPatch) -> No
     )
     assert main([]) == 0
     assert calls == [("stdio", {})]
+
+
+def test_http_port_in_use_returns_1(
+    notes_root: Path, monkeypatch: MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """P2-8a：端口被占时给一句友好的"端口已被占用"、退出码 1，
+    而不是把原始 traceback 甩给用户。"""
+    class FakeServer:
+        def run(self, transport: str, **kwargs: object) -> None:
+            raise OSError(errno.EADDRINUSE, "Address already in use")
+
+    monkeypatch.setattr(
+        "notes_mcp.__main__.create_server", lambda settings: FakeServer()
+    )
+    assert main([
+        "--root", str(notes_root),
+        "--transport", "streamable-http",
+        "--port", "8123",
+    ]) == 1
+    assert "端口 8123 已被占用" in capsys.readouterr().err
+
+
+def test_http_other_oserror_reraises(notes_root: Path, monkeypatch: MonkeyPatch) -> None:
+    """P2-8a：不是端口占用（例如 host 非法）的 OSError 不能被认成端口问题。"""
+    class FakeServer:
+        def run(self, transport: str, **kwargs: object) -> None:
+            raise OSError(errno.EACCES, "Permission denied")
+
+    monkeypatch.setattr(
+        "notes_mcp.__main__.create_server", lambda settings: FakeServer()
+    )
+    with pytest.raises(OSError, match="Permission denied"):
+        main([
+            "--root", str(notes_root),
+            "--transport", "streamable-http",
+            "--port", "8123",
+        ])

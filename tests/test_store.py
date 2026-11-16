@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from notes_mcp.config import Settings
+from notes_mcp.errors import NoteTooLargeError
 from notes_mcp.notes import (
     count_units,
     decode_bytes,
@@ -15,7 +16,7 @@ from notes_mcp.notes import (
     extract_title,
     iter_note_files,
 )
-from notes_mcp.notes.store import FilesystemNoteStore, make_store
+from notes_mcp.notes.store import MAX_NOTE_BYTES, FilesystemNoteStore, make_store
 from notes_mcp.safety import PathRejected
 
 
@@ -361,3 +362,52 @@ def test_make_store_rejects_missing_root(tmp_path: Path) -> None:
     """N6：根目录不存在时 make_store 直接报错，而不是静默返回空库。"""
     with pytest.raises(FileNotFoundError, match="根目录不存在"):
         make_store(Settings(root=tmp_path / "no-such-dir"))
+
+
+def test_decode_utf32_bom() -> None:
+    """P2-7b：UTF-32 LE 的 BOM（FF FE 00 00）前两个字节与 UTF-16 LE 相同，
+    不先判 4 字节就会按 UTF-16 解出带 NUL 的乱码。"""
+    assert decode_bytes("中文内容".encode("utf-32")) == "中文内容"
+    assert decode_bytes("hello".encode("utf-32")) == "hello"
+    assert decode_bytes(b"\x00\x00\xfe\xff" + "hello".encode("utf-32-be")) == "hello"
+    assert "\x00" not in decode_bytes("中文内容".encode("utf-32"))
+    # 截断的 UTF-32（BOM 后不是 4 字节倍数）不抛异常，走有损兜底。
+    assert isinstance(decode_bytes(b"\xff\xfe\x00\x00abc"), str)
+
+
+def test_count_units_excludes_frontmatter(tmp_path: Path) -> None:
+    """P2-6：字数只算剥离 frontmatter 后的正文，块里的长标题不计入。"""
+    note = tmp_path / "fm.md"
+    note.write_text(
+        "---\ntitle: " + "元数据标题词 " * 50 + "\ntags: [mcp]\n---\n\n正文内容\n",
+        encoding="utf-8",
+    )
+    loaded = FilesystemNoteStore(tmp_path).load_note(note)
+    assert loaded.units == count_units("正文内容\n")
+    # 无 frontmatter 时行为不变（对照：直接算全文）。
+    plain = tmp_path / "plain.md"
+    plain.write_text("# 标题\n\n正文内容 words here\n", encoding="utf-8")
+    assert FilesystemNoteStore(tmp_path).load_note(plain).units == count_units(
+        "# 标题\n\n正文内容 words here\n"
+    )
+
+
+def test_load_all_skips_oversized_file(tmp_path: Path) -> None:
+    """P2-7a：超过 10 MB 的单篇不读进内存，load_all 跳过并计数，其余笔记照常。"""
+    root = tmp_path / "notes"
+    root.mkdir()
+    (root / "small.md").write_text("# 小\n\n正文\n", encoding="utf-8")
+    big = root / "big.md"
+    big.write_bytes(b"x" * (MAX_NOTE_BYTES + 1))
+
+    store = FilesystemNoteStore(root)
+    notes = store.load_all()
+    assert [n.rel for n in notes] == ["small.md"]
+    assert store.skipped_oversized == 1
+
+    # 直接读单篇超大文件：抛 NoteTooLargeError（OSError 子类），不是裸异常。
+    with pytest.raises(NoteTooLargeError):
+        store.load_note(big)
+    # 再跑一次 load_all，计数是本次扫描的结果，不是累积。
+    assert [n.rel for n in store.load_all()] == ["small.md"]
+    assert store.skipped_oversized == 1
